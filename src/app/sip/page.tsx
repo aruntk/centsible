@@ -79,11 +79,11 @@ export default function SIPCalculatorPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">SIP Calculator</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">SIP Calculator</h1>
 
       {/* SIP Inputs */}
-      <div className="bg-white rounded-xl border p-5 shadow-sm">
-        <h2 className="font-semibold text-gray-700 mb-3">Equity / Mutual Funds ({sipReturn}% return)</h2>
+      <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
+        <h2 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">Equity / Mutual Funds ({sipReturn}% return)</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Field label="Lumpsum" value={sipLumpsum} onChange={setSipLumpsum} />
           <Field label="Monthly SIP" value={sipMonthly} onChange={setSipMonthly} />
@@ -94,8 +94,8 @@ export default function SIPCalculatorPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Gold Inputs */}
-        <div className="bg-white rounded-xl border p-5 shadow-sm">
-          <h2 className="font-semibold text-yellow-700 mb-3">Gold ({goldReturn}% return)</h2>
+        <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
+          <h2 className="font-semibold text-yellow-700 dark:text-yellow-500 mb-3">Gold ({goldReturn}% return)</h2>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Lumpsum" value={goldLumpsum} onChange={setGoldLumpsum} />
             <Field label="Monthly" value={goldMonthly} onChange={setGoldMonthly} />
@@ -105,8 +105,8 @@ export default function SIPCalculatorPage() {
         </div>
 
         {/* Real Estate Inputs */}
-        <div className="bg-white rounded-xl border p-5 shadow-sm">
-          <h2 className="font-semibold text-amber-800 mb-3">Real Estate ({reReturn}% return)</h2>
+        <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
+          <h2 className="font-semibold text-amber-800 dark:text-amber-500 mb-3">Real Estate ({reReturn}% return)</h2>
           <div className="grid grid-cols-2 gap-4">
             <Field label="Lumpsum" value={reLumpsum} onChange={setReLumpsum} />
             <Field label="Monthly" value={reMonthly} onChange={setReMonthly} />
@@ -117,7 +117,7 @@ export default function SIPCalculatorPage() {
       </div>
 
       {/* Common Inputs */}
-      <div className="bg-white rounded-xl border p-5 shadow-sm">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
         <div className="grid grid-cols-2 md:grid-cols-2 gap-4 max-w-md">
           <Field label="Inflation %" value={inflation} onChange={setInflation} />
           <Field label="Duration (years)" value={years} onChange={(v) => setYears(Math.max(1, v))} />
@@ -126,20 +126,20 @@ export default function SIPCalculatorPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card label="Total Invested" value={totalInvested} color="text-gray-800" />
-        <Card label="SIP (Equity)" value={sipRows.at(-1)?.value ?? 0} sub={`Invested: ${formatCurrency(sipRows.at(-1)?.invested ?? 0)}`} color="text-emerald-600" />
-        <Card label="Gold" value={goldRows.at(-1)?.value ?? 0} sub={`Invested: ${formatCurrency(goldRows.at(-1)?.invested ?? 0)}`} color="text-yellow-600" />
-        <Card label="Real Estate" value={reRows.at(-1)?.value ?? 0} sub={`Invested: ${formatCurrency(reRows.at(-1)?.invested ?? 0)}`} color="text-amber-700" />
+        <Card label="Total Invested" value={totalInvested} color="text-gray-800 dark:text-gray-200" />
+        <Card label="SIP (Equity)" value={sipRows.at(-1)?.value ?? 0} sub={`Invested: ${formatCurrency(sipRows.at(-1)?.invested ?? 0)}`} color="text-emerald-600 dark:text-emerald-400" />
+        <Card label="Gold" value={goldRows.at(-1)?.value ?? 0} sub={`Invested: ${formatCurrency(goldRows.at(-1)?.invested ?? 0)}`} color="text-yellow-600 dark:text-yellow-400" />
+        <Card label="Real Estate" value={reRows.at(-1)?.value ?? 0} sub={`Invested: ${formatCurrency(reRows.at(-1)?.invested ?? 0)}`} color="text-amber-700 dark:text-amber-500" />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card label="Combined Nominal" value={totalValue} sub={`Gain: ${formatCurrency(totalValue - totalInvested)}`} color="text-emerald-600" />
-        <Card label="Combined Real (today's ₹)" value={realTotal} sub={`After ${inflation}% inflation`} color="text-blue-600" />
-        <Card label="Wealth Multiplier" value={0} color="text-purple-600" custom={`${(totalValue / Math.max(totalInvested, 1)).toFixed(1)}x`} />
+        <Card label="Combined Nominal" value={totalValue} sub={`Gain: ${formatCurrency(totalValue - totalInvested)}`} color="text-emerald-600 dark:text-emerald-400" />
+        <Card label="Combined Real (today's ₹)" value={realTotal} sub={`After ${inflation}% inflation`} color="text-blue-600 dark:text-blue-400" />
+        <Card label="Wealth Multiplier" value={0} color="text-purple-600 dark:text-purple-400" custom={`${(totalValue / Math.max(totalInvested, 1)).toFixed(1)}x`} />
       </div>
 
       {/* Chart */}
-      <div className="bg-white rounded-xl border p-5 shadow-sm">
-        <h2 className="font-semibold text-gray-700 mb-3">Growth Projection</h2>
+      <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
+        <h2 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">Growth Projection</h2>
         <ResponsiveContainer width="100%" height={400}>
           <AreaChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
@@ -156,13 +156,13 @@ export default function SIPCalculatorPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b">
-          <h2 className="font-semibold text-gray-700">Year-by-Year Breakdown</h2>
+      <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b dark:border-gray-800">
+          <h2 className="font-semibold text-gray-700 dark:text-gray-300">Year-by-Year Breakdown</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600">
+            <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
               <tr>
                 <th className="text-left px-3 py-2 font-medium">Year</th>
                 <th className="text-right px-3 py-2 font-medium">SIP/mo</th>
@@ -174,16 +174,16 @@ export default function SIPCalculatorPage() {
                 <th className="text-right px-3 py-2 font-medium">Combined</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y dark:divide-gray-800">
               {sipRows.map((s, i) => (
-                <tr key={s.year} className="hover:bg-gray-50">
+                <tr key={s.year} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                   <td className="px-3 py-2">{s.year}</td>
                   <td className="px-3 py-2 text-right">{formatCurrency(s.sip)}</td>
-                  <td className="px-3 py-2 text-right text-emerald-600">{formatCurrency(s.value)}</td>
+                  <td className="px-3 py-2 text-right text-emerald-600 dark:text-emerald-400">{formatCurrency(s.value)}</td>
                   <td className="px-3 py-2 text-right">{formatCurrency(goldRows[i].sip)}</td>
-                  <td className="px-3 py-2 text-right text-yellow-600">{formatCurrency(goldRows[i].value)}</td>
+                  <td className="px-3 py-2 text-right text-yellow-600 dark:text-yellow-400">{formatCurrency(goldRows[i].value)}</td>
                   <td className="px-3 py-2 text-right">{formatCurrency(reRows[i].sip)}</td>
-                  <td className="px-3 py-2 text-right text-amber-700">{formatCurrency(reRows[i].value)}</td>
+                  <td className="px-3 py-2 text-right text-amber-700 dark:text-amber-500">{formatCurrency(reRows[i].value)}</td>
                   <td className="px-3 py-2 text-right font-medium">{formatCurrency(s.value + goldRows[i].value + reRows[i].value)}</td>
                 </tr>
               ))}
@@ -198,12 +198,12 @@ export default function SIPCalculatorPage() {
 function Field({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
     <div>
-      <label className="text-xs text-gray-500 block mb-1">{label}</label>
+      <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">{label}</label>
       <input
         type="number"
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full border rounded-lg px-3 py-2 text-sm"
+        className="w-full border dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
       />
     </div>
   );
@@ -211,8 +211,8 @@ function Field({ label, value, onChange }: { label: string; value: number; onCha
 
 function Card({ label, value, sub, color, custom }: { label: string; value: number; sub?: string; color: string; custom?: string }) {
   return (
-    <div className="bg-white rounded-xl border p-5 shadow-sm text-center">
-      <div className="text-xs text-gray-500 mb-1">{label}</div>
+    <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm text-center">
+      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">{label}</div>
       <div className={`text-xl font-bold ${color}`}>{custom ?? formatCurrency(value)}</div>
       {sub && <div className="text-xs text-gray-400 mt-1">{sub}</div>}
     </div>

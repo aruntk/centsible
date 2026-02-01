@@ -57,14 +57,14 @@ export default function KeywordsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold text-gray-900">Recurring Keywords</h1>
-      <p className="text-sm text-gray-500">
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Recurring Keywords</h1>
+      <p className="text-sm text-gray-500 dark:text-gray-400">
         Frequently occurring terms from your transaction narrations. Create rules to auto-categorize matching transactions.
       </p>
 
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
+          <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
             <tr>
               <th className="text-left px-4 py-3 font-medium">Keyword</th>
               <th className="text-right px-4 py-3 font-medium">Count</th>
@@ -73,14 +73,14 @@ export default function KeywordsPage() {
               <th className="text-left px-4 py-3 font-medium">Action</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y dark:divide-gray-800">
             {keywords.map((kw) => (
-              <tr key={kw.keyword} className="hover:bg-gray-50">
+              <tr key={kw.keyword} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                 <td className="px-4 py-2.5 font-medium">{kw.keyword}</td>
-                <td className="px-4 py-2.5 text-right text-gray-600">{kw.count}</td>
+                <td className="px-4 py-2.5 text-right text-gray-600 dark:text-gray-400">{kw.count}</td>
                 <td className="px-4 py-2.5 max-w-[400px]">
                   {kw.samples.map((s, i) => (
-                    <div key={i} className="truncate text-gray-500 text-xs" title={s}>{s}</div>
+                    <div key={i} className="truncate text-gray-500 dark:text-gray-400 text-xs" title={s}>{s}</div>
                   ))}
                 </td>
                 <td className="px-4 py-2.5 text-center">
@@ -92,7 +92,7 @@ export default function KeywordsPage() {
                       <select
                         value={selectedCat}
                         onChange={(e) => setSelectedCat(Number(e.target.value))}
-                        className="border rounded px-2 py-1 text-xs"
+                        className="border dark:border-gray-700 rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 dark:text-gray-200"
                       >
                         {categories.map((c) => (
                           <option key={c.id} value={c.id}>{c.name}</option>
@@ -101,7 +101,7 @@ export default function KeywordsPage() {
                       <select
                         value={priority}
                         onChange={(e) => setPriority(Number(e.target.value))}
-                        className="border rounded px-2 py-1 text-xs w-16"
+                        className="border dark:border-gray-700 rounded px-2 py-1 text-xs w-16 bg-white dark:bg-gray-800 dark:text-gray-200"
                       >
                         {PRIORITIES.map((p) => (
                           <option key={p} value={p}>P{p}</option>
@@ -110,7 +110,7 @@ export default function KeywordsPage() {
                       <button
                         onClick={() => createRule(kw.keyword)}
                         disabled={loading}
-                        className="bg-gray-900 text-white px-3 py-1 rounded text-xs hover:bg-gray-800 disabled:opacity-50"
+                        className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-3 py-1 rounded text-xs hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50"
                       >
                         Save
                       </button>
@@ -125,7 +125,7 @@ export default function KeywordsPage() {
                     !kw.has_rule && (
                       <button
                         onClick={() => setCreating(kw.keyword)}
-                        className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900"
+                        className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
                       >
                         <Plus className="w-3 h-3" /> Create Rule
                       </button>

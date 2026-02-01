@@ -39,24 +39,24 @@ export default function FriendsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Friends & Family</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Friends & Family</h1>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border p-4 shadow-sm text-center">
-          <div className="text-xs text-gray-500 mb-1">Total Sent</div>
-          <div className="text-lg font-bold text-red-600">{formatCurrency(totalSent)}</div>
+        <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-4 shadow-sm text-center">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Sent</div>
+          <div className="text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(totalSent)}</div>
         </div>
-        <div className="bg-white rounded-xl border p-4 shadow-sm text-center">
-          <div className="text-xs text-gray-500 mb-1">Total Received</div>
-          <div className="text-lg font-bold text-emerald-600">{formatCurrency(totalReceived)}</div>
+        <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-4 shadow-sm text-center">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Received</div>
+          <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(totalReceived)}</div>
         </div>
-        <div className="bg-white rounded-xl border p-4 shadow-sm text-center">
-          <div className="text-xs text-gray-500 mb-1">Others Owe Me</div>
-          <div className="text-lg font-bold text-blue-600">{formatCurrency(totalOwedToMe)}</div>
+        <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-4 shadow-sm text-center">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Others Owe Me</div>
+          <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{formatCurrency(totalOwedToMe)}</div>
         </div>
-        <div className="bg-white rounded-xl border p-4 shadow-sm text-center">
-          <div className="text-xs text-gray-500 mb-1">I Owe Others</div>
-          <div className="text-lg font-bold text-orange-600">{formatCurrency(totalIOwe)}</div>
+        <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-4 shadow-sm text-center">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">I Owe Others</div>
+          <div className="text-lg font-bold text-orange-600 dark:text-orange-400">{formatCurrency(totalIOwe)}</div>
         </div>
       </div>
 
@@ -66,7 +66,9 @@ export default function FriendsPage() {
             key={f}
             onClick={() => setFilter(f)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-              filter === f ? "bg-gray-900 text-white" : "bg-white border text-gray-600 hover:bg-gray-50"
+              filter === f
+                ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+                : "bg-white dark:bg-gray-900 border dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
             }`}
           >
             {f === "all" ? "All" : f === "owe_me" ? "They Owe Me" : "I Owe"}
@@ -75,9 +77,9 @@ export default function FriendsPage() {
         <span className="text-sm text-gray-400 ml-2">{filtered.length} people</span>
       </div>
 
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 shadow-sm overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
+          <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
             <tr>
               <th className="text-left px-4 py-3 font-medium">Person</th>
               <th className="text-right px-4 py-3 font-medium">Sent</th>
@@ -87,27 +89,27 @@ export default function FriendsPage() {
               <th className="text-left px-4 py-3 font-medium">Last Activity</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y dark:divide-gray-800">
             {filtered.map((p) => (
-              <tr key={p.person} className="hover:bg-gray-50">
+              <tr key={p.person} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                 <td className="px-4 py-2.5 font-medium">{p.person}</td>
-                <td className="px-4 py-2.5 text-right text-red-600">
+                <td className="px-4 py-2.5 text-right text-red-600 dark:text-red-400">
                   {p.sent ? formatCurrency(p.sent) : "—"}
                 </td>
-                <td className="px-4 py-2.5 text-right text-emerald-600">
+                <td className="px-4 py-2.5 text-right text-emerald-600 dark:text-emerald-400">
                   {p.received ? formatCurrency(p.received) : "—"}
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   <span className={`inline-flex items-center gap-1 font-semibold ${
-                    p.net_owed > 0 ? "text-blue-600" : p.net_owed < 0 ? "text-orange-600" : "text-gray-400"
+                    p.net_owed > 0 ? "text-blue-600 dark:text-blue-400" : p.net_owed < 0 ? "text-orange-600 dark:text-orange-400" : "text-gray-400"
                   }`}>
                     {p.net_owed > 0 && <ArrowDownLeft className="w-3 h-3" />}
                     {p.net_owed < 0 && <ArrowUpRight className="w-3 h-3" />}
                     {p.net_owed === 0 ? "Settled" : formatCurrency(Math.abs(p.net_owed))}
                   </span>
                 </td>
-                <td className="px-4 py-2.5 text-center text-gray-500">{p.txn_count}</td>
-                <td className="px-4 py-2.5 text-gray-500">{formatDate(p.last_txn)}</td>
+                <td className="px-4 py-2.5 text-center text-gray-500 dark:text-gray-400">{p.txn_count}</td>
+                <td className="px-4 py-2.5 text-gray-500 dark:text-gray-400">{formatDate(p.last_txn)}</td>
               </tr>
             ))}
             {filtered.length === 0 && (

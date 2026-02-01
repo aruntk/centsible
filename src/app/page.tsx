@@ -65,8 +65,8 @@ export default function DashboardPage() {
   if (data.totalIncome === 0 && data.totalExpenses === 0 && preset === "all") {
     return (
       <div className="text-center py-20">
-        <p className="text-gray-500 text-lg">No transactions yet.</p>
-        <a href="/import" className="text-blue-600 underline mt-2 inline-block">Import a bank statement</a>
+        <p className="text-gray-500 dark:text-gray-400 text-lg">No transactions yet.</p>
+        <a href="/import" className="text-blue-600 dark:text-blue-400 underline mt-2 inline-block">Import a bank statement</a>
       </div>
     );
   }
@@ -74,12 +74,12 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={preset}
             onChange={(e) => setPreset(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm bg-white"
+            className="border dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
           >
             <option value="all">All Time</option>
             {FY_OPTIONS.map((fy) => (
@@ -93,14 +93,14 @@ export default function DashboardPage() {
                 type="date"
                 value={from}
                 onChange={(e) => setFrom(e.target.value)}
-                className="border rounded-lg px-3 py-2 text-sm bg-white"
+                className="border dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
               />
               <span className="text-sm text-gray-400">to</span>
               <input
                 type="date"
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
-                className="border rounded-lg px-3 py-2 text-sm bg-white"
+                className="border dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
               />
             </>
           )}
@@ -110,37 +110,37 @@ export default function DashboardPage() {
       <DashboardCards totalIncome={data.totalIncome} totalExpenses={data.totalExpenses} balance={data.balance} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border p-5 shadow-sm">
-          <h2 className="font-semibold text-gray-700 mb-3">Spending by Category</h2>
+        <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
+          <h2 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">Spending by Category</h2>
           <CategoryPieChart data={data.byCategory} />
         </div>
-        <div className="bg-white rounded-xl border p-5 shadow-sm">
-          <h2 className="font-semibold text-gray-700 mb-3">Monthly Income vs Expenses</h2>
+        <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
+          <h2 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">Monthly Income vs Expenses</h2>
           <MonthlyBarChart data={data.byMonth} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border p-5 shadow-sm">
-          <h2 className="font-semibold text-gray-700 mb-3">Weekly Spending Trend</h2>
+        <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
+          <h2 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">Weekly Spending Trend</h2>
           <SpendingTrend data={data.dailySpending} />
         </div>
-        <div className="bg-white rounded-xl border p-5 shadow-sm">
-          <h2 className="font-semibold text-gray-700 mb-3">Investments per Month</h2>
+        <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
+          <h2 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">Investments per Month</h2>
           <InvestmentBarChart data={data.investmentByMonth} />
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border p-5 shadow-sm">
-        <h2 className="font-semibold text-gray-700 mb-3">Top Merchants</h2>
-        <div className="divide-y">
+      <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
+        <h2 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">Top Merchants</h2>
+        <div className="divide-y dark:divide-gray-800">
           {data.topMerchants.map((m, i) => (
             <div key={i} className="flex items-center justify-between py-2.5">
               <div>
-                <span className="font-medium text-gray-800">{m.merchant}</span>
+                <span className="font-medium text-gray-800 dark:text-gray-200">{m.merchant}</span>
                 <span className="text-gray-400 text-sm ml-2">({m.count} txns)</span>
               </div>
-              <span className="font-semibold text-red-600">{formatCurrency(m.total)}</span>
+              <span className="font-semibold text-red-600 dark:text-red-400">{formatCurrency(m.total)}</span>
             </div>
           ))}
         </div>

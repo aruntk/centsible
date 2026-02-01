@@ -1,13 +1,22 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, useSyncExternalStore } from "react";
 import { AgGridReact } from "ag-grid-react";
-import { AllCommunityModule, ModuleRegistry, type ColDef, type CellValueChangedEvent } from "ag-grid-community";
+import { AllCommunityModule, ModuleRegistry, type ColDef, type CellValueChangedEvent, themeQuartz, colorSchemeDark, colorSchemeLight } from "ag-grid-community";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import SelectionRulePopover from "@/components/SelectionRulePopover";
 import { Plus, ChevronUp, Upload, Download } from "lucide-react";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
+
+function subscribeTheme(cb: () => void) {
+  const observer = new MutationObserver(cb);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+  return () => observer.disconnect();
+}
+function getIsDark() {
+  return document.documentElement.classList.contains("dark");
+}
 
 type Transaction = {
   id: number;
@@ -38,6 +47,11 @@ const emptyForm = {
 };
 
 export default function TransactionsPage() {
+  const isDark = useSyncExternalStore(subscribeTheme, getIsDark, () => false);
+  const gridTheme = useMemo(
+    () => themeQuartz.withPart(isDark ? colorSchemeDark : colorSchemeLight),
+    [isDark]
+  );
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const gridRef = useRef<AgGridReact>(null);
   const [showForm, setShowForm] = useState(false);
@@ -157,7 +171,7 @@ export default function TransactionsPage() {
       width: 130,
       type: "rightAligned",
       valueFormatter: (p) => p.value ? formatCurrency(p.value) : "",
-      cellStyle: { color: "#dc2626" },
+      cellStyle: { color: isDark ? "#f87171" : "#dc2626" },
       filter: "agNumberColumnFilter",
     },
     {
@@ -166,7 +180,7 @@ export default function TransactionsPage() {
       width: 130,
       type: "rightAligned",
       valueFormatter: (p) => p.value ? formatCurrency(p.value) : "",
-      cellStyle: { color: "#059669" },
+      cellStyle: { color: isDark ? "#6ee7b7" : "#059669" },
       filter: "agNumberColumnFilter",
     },
     {
@@ -186,7 +200,7 @@ export default function TransactionsPage() {
       cellEditorParams: { values: CATEGORIES },
       filter: "agTextColumnFilter",
     },
-  ], []);
+  ], [isDark]);
 
   const defaultColDef = useMemo<ColDef>(() => ({
     sortable: true,
@@ -198,31 +212,31 @@ export default function TransactionsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Transactions</h1>
         <div className="flex items-center gap-3">
-          {importResult && <span className="text-sm text-emerald-600">{importResult}</span>}
-          <span className="text-sm text-gray-500">{transactions.length} transactions</span>
+          {importResult && <span className="text-sm text-emerald-600 dark:text-emerald-400">{importResult}</span>}
+          <span className="text-sm text-gray-500 dark:text-gray-400">{transactions.length} transactions</span>
           <button
             onClick={exportTransactions}
-            className="flex items-center gap-1.5 border text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
+            className="flex items-center gap-1.5 border dark:border-gray-700 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
           >
             <Download className="w-4 h-4" /> Export
           </button>
           <button
             onClick={downloadTemplate}
-            className="flex items-center gap-1.5 border text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
+            className="flex items-center gap-1.5 border dark:border-gray-700 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
           >
             <Download className="w-4 h-4" /> Template
           </button>
           <button
             onClick={importCSV}
-            className="flex items-center gap-1.5 border text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
+            className="flex items-center gap-1.5 border dark:border-gray-700 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
           >
             <Upload className="w-4 h-4" /> Import CSV
           </button>
           <button
             onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-1.5 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800"
+            className="flex items-center gap-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-200"
           >
             {showForm ? <ChevronUp className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             Add Transaction
@@ -230,65 +244,65 @@ export default function TransactionsPage() {
         </div>
       </div>
       {showForm && (
-        <div className="bg-white rounded-xl border p-4 shadow-sm space-y-3">
+        <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-4 shadow-sm space-y-3">
           <div className="flex flex-wrap gap-3 items-end">
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Date</label>
+              <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Date</label>
               <input
                 type="date"
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
-                className="border rounded-lg px-3 py-2 text-sm"
+                className="border dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
               />
             </div>
             <div className="flex-1 min-w-[200px]">
-              <label className="text-xs text-gray-500 block mb-1">Narration</label>
+              <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Narration</label>
               <input
                 type="text"
                 value={form.narration}
                 onChange={(e) => setForm({ ...form, narration: e.target.value })}
                 placeholder="Description of the transaction"
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="w-full border dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
               />
             </div>
             <div className="min-w-[140px]">
-              <label className="text-xs text-gray-500 block mb-1">Merchant</label>
+              <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Merchant</label>
               <input
                 type="text"
                 value={form.merchant}
                 onChange={(e) => setForm({ ...form, merchant: e.target.value })}
                 placeholder="e.g. Swiggy"
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="w-full border dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
               />
             </div>
           </div>
           <div className="flex flex-wrap gap-3 items-end">
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Withdrawal</label>
+              <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Withdrawal</label>
               <input
                 type="number"
                 value={form.withdrawal}
                 onChange={(e) => setForm({ ...form, withdrawal: e.target.value })}
                 placeholder="0"
-                className="border rounded-lg px-3 py-2 text-sm w-32"
+                className="border dark:border-gray-700 rounded-lg px-3 py-2 text-sm w-32 bg-white dark:bg-gray-800 dark:text-gray-200"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Deposit</label>
+              <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Deposit</label>
               <input
                 type="number"
                 value={form.deposit}
                 onChange={(e) => setForm({ ...form, deposit: e.target.value })}
                 placeholder="0"
-                className="border rounded-lg px-3 py-2 text-sm w-32"
+                className="border dark:border-gray-700 rounded-lg px-3 py-2 text-sm w-32 bg-white dark:bg-gray-800 dark:text-gray-200"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Category</label>
+              <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Category</label>
               <select
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
-                className="border rounded-lg px-3 py-2 text-sm"
+                className="border dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
               >
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -296,7 +310,7 @@ export default function TransactionsPage() {
             <button
               onClick={addTransaction}
               disabled={!form.date || !form.narration.trim()}
-              className="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 hover:bg-gray-800 disabled:opacity-40"
+              className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-40"
             >
               <Plus className="w-4 h-4" /> Add
             </button>
@@ -304,8 +318,9 @@ export default function TransactionsPage() {
         </div>
       )}
       <SelectionRulePopover onRuleAdded={load} />
-      <div className="ag-theme-alpine" style={{ height: "calc(100vh - 140px)", width: "100%" }}>
+      <div style={{ height: "calc(100vh - 140px)", width: "100%" }}>
         <AgGridReact
+          theme={gridTheme}
           ref={gridRef}
           rowData={transactions}
           columnDefs={columnDefs}

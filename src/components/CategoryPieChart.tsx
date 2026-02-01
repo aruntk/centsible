@@ -14,6 +14,8 @@ export default function CategoryPieChart({ data }: {
 }) {
   if (!data?.length) return <div className="text-gray-400 text-center py-10">No data</div>;
 
+  const total = data.reduce((s, d) => s + d.total, 0);
+
   return (
     <ResponsiveContainer width="100%" height={350}>
       <PieChart>
@@ -22,19 +24,29 @@ export default function CategoryPieChart({ data }: {
           dataKey="total"
           nameKey="category"
           cx="50%"
-          cy="50%"
-          outerRadius={120}
-          label={({ name, percent }: { name?: string; percent?: number }) =>
-            (percent ?? 0) > 0.03 ? `${name} ${((percent ?? 0) * 100).toFixed(0)}%` : ""
-          }
+          cy="45%"
+          outerRadius={100}
+          innerRadius={50}
+          paddingAngle={1}
+          label={false}
           labelLine={false}
         >
           {data.map((_, i) => (
             <Cell key={i} fill={COLORS[i % COLORS.length]} />
           ))}
         </Pie>
-        <Tooltip formatter={(value) => formatCurrency(value as number)} />
-        <Legend />
+        <Tooltip
+          formatter={(value, name) => {
+            const v = Number(value) || 0;
+            return [`${formatCurrency(v)} (${((v / total) * 100).toFixed(1)}%)`, name];
+          }}
+        />
+        <Legend
+          layout="horizontal"
+          verticalAlign="bottom"
+          align="center"
+          wrapperStyle={{ fontSize: 12, maxHeight: 80, overflowY: "auto" }}
+        />
       </PieChart>
     </ResponsiveContainer>
   );
