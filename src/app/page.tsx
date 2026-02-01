@@ -1,65 +1,150 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState, useCallback } from "react";
+import DashboardCards from "@/components/DashboardCards";
+import CategoryPieChart from "@/components/CategoryPieChart";
+import MonthlyBarChart from "@/components/MonthlyBarChart";
+import SpendingTrend from "@/components/SpendingTrend";
+import InvestmentBarChart from "@/components/InvestmentBarChart";
+import { formatCurrency } from "@/lib/utils";
+
+type Analytics = {
+  totalIncome: number;
+  totalExpenses: number;
+  balance: number;
+  byCategory: { category: string; total: number; count: number }[];
+  byMonth: { month: string; expenses: number; income: number }[];
+  topMerchants: { merchant: string; total: number; count: number }[];
+  dailySpending: { date: string; total: number }[];
+  investmentByMonth: { month: string; total: number }[];
+  avgMonthlyInvestment: number;
+};
+
+// Indian financial years: April to March
+function getFYOptions(): { label: string; from: string; to: string }[] {
+  const now = new Date();
+  const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const options: { label: string; from: string; to: string }[] = [];
+  for (let y = currentYear; y >= currentYear - 5; y--) {
+    options.push({
+      label: `FY ${y}-${String(y + 1).slice(2)}`,
+      from: `${y}-04-01`,
+      to: `${y + 1}-03-31`,
+    });
+  }
+  return options;
+}
+
+const FY_OPTIONS = getFYOptions();
+
+export default function DashboardPage() {
+  const [data, setData] = useState<Analytics | null>(null);
+  const [preset, setPreset] = useState("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
+  const load = useCallback(() => {
+    const params = new URLSearchParams();
+    if (preset === "custom") {
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+    } else if (preset !== "all") {
+      const fy = FY_OPTIONS.find((f) => f.label === preset);
+      if (fy) {
+        params.set("from", fy.from);
+        params.set("to", fy.to);
+      }
+    }
+    fetch(`/api/analytics?${params}`).then((r) => r.json()).then(setData);
+  }, [preset, from, to]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (!data) return <div className="text-center py-20 text-gray-400">Loading...</div>;
+
+  if (data.totalIncome === 0 && data.totalExpenses === 0 && preset === "all") {
+    return (
+      <div className="text-center py-20">
+        <p className="text-gray-500 text-lg">No transactions yet.</p>
+        <a href="/import" className="text-blue-600 underline mt-2 inline-block">Import a bank statement</a>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={preset}
+            onChange={(e) => setPreset(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm bg-white"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <option value="all">All Time</option>
+            {FY_OPTIONS.map((fy) => (
+              <option key={fy.label} value={fy.label}>{fy.label}</option>
+            ))}
+            <option value="custom">Custom Range</option>
+          </select>
+          {preset === "custom" && (
+            <>
+              <input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="border rounded-lg px-3 py-2 text-sm bg-white"
+              />
+              <span className="text-sm text-gray-400">to</span>
+              <input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="border rounded-lg px-3 py-2 text-sm bg-white"
+              />
+            </>
+          )}
         </div>
-      </main>
+      </div>
+
+      <DashboardCards totalIncome={data.totalIncome} totalExpenses={data.totalExpenses} balance={data.balance} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl border p-5 shadow-sm">
+          <h2 className="font-semibold text-gray-700 mb-3">Spending by Category</h2>
+          <CategoryPieChart data={data.byCategory} />
+        </div>
+        <div className="bg-white rounded-xl border p-5 shadow-sm">
+          <h2 className="font-semibold text-gray-700 mb-3">Monthly Income vs Expenses</h2>
+          <MonthlyBarChart data={data.byMonth} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-xl border p-5 shadow-sm">
+          <h2 className="font-semibold text-gray-700 mb-3">Weekly Spending Trend</h2>
+          <SpendingTrend data={data.dailySpending} />
+        </div>
+        <div className="bg-white rounded-xl border p-5 shadow-sm">
+          <h2 className="font-semibold text-gray-700 mb-3">Investments per Month</h2>
+          <InvestmentBarChart data={data.investmentByMonth} />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border p-5 shadow-sm">
+        <h2 className="font-semibold text-gray-700 mb-3">Top Merchants</h2>
+        <div className="divide-y">
+          {data.topMerchants.map((m, i) => (
+            <div key={i} className="flex items-center justify-between py-2.5">
+              <div>
+                <span className="font-medium text-gray-800">{m.merchant}</span>
+                <span className="text-gray-400 text-sm ml-2">({m.count} txns)</span>
+              </div>
+              <span className="font-semibold text-red-600">{formatCurrency(m.total)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,20 +1,34 @@
 {
-  "name": "fin-tracker-tmp",
+  "name": "centsible",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "electron:compile": "tsc -p tsconfig.electron.json",
+    "electron:dev": "npm run build && npm run electron:compile && electron .",
+    "electron:build": "npm run build && npm run electron:compile && electron-builder --mac",
+    "postinstall": "electron-rebuild || true"
   },
   "dependencies": {
+    "ag-grid-community": "^35.0.1",
+    "ag-grid-react": "^35.0.1",
+    "better-sqlite3": "^11.10.0",
+    "lucide-react": "^0.563.0",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "recharts": "^3.7.0"
   },
   "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "electron-rebuild": "^3.2.9",
     "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

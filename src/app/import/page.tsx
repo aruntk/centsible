@@ -1,0 +1,90 @@
+"use client";
+
+import { useState, useRef } from "react";
+import { Upload, CheckCircle, AlertCircle } from "lucide-react";
+
+export default function ImportPage() {
+  const [dragging, setDragging] = useState(false);
+  const [result, setResult] = useState<{ imported: number; skipped: number; total: number } | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const upload = async (file: File) => {
+    setLoading(true);
+    setError("");
+    setResult(null);
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const res = await fetch("/api/import", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setResult(data);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-xl mx-auto space-y-6">
+      <h1 className="text-2xl font-bold text-gray-900">Import Statement</h1>
+      <p className="text-gray-500">Upload an HDFC Bank account statement (.txt file)</p>
+
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          const file = e.dataTransfer.files[0];
+          if (file) upload(file);
+        }}
+        onClick={() => inputRef.current?.click()}
+        className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors ${
+          dragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
+        }`}
+      >
+        <Upload className="w-10 h-10 mx-auto text-gray-400 mb-3" />
+        <p className="text-gray-600 font-medium">
+          {loading ? "Uploading..." : "Drop statement file here or click to browse"}
+        </p>
+        <p className="text-gray-400 text-sm mt-1">Supports HDFC fixed-width text format</p>
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".txt"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) upload(file);
+          }}
+        />
+      </div>
+
+      {result && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex gap-3 items-start">
+          <CheckCircle className="w-5 h-5 text-emerald-600 mt-0.5" />
+          <div>
+            <p className="font-medium text-emerald-800">Import successful</p>
+            <p className="text-sm text-emerald-700 mt-1">
+              {result.imported} transactions imported, {result.skipped} duplicates skipped (total {result.total} in file)
+            </p>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex gap-3 items-start">
+          <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
+          <div>
+            <p className="font-medium text-red-800">Import failed</p>
+            <p className="text-sm text-red-700 mt-1">{error}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

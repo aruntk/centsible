@@ -39,3 +39,31 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# personal data / database
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# bank statements & financial data
+*.csv
+*.xls
+*.xlsx
+*.pdf
+*.ofx
+*.qfx
+*.qif
+*.txt
+
+# backups
+*.bak
+*.backup
+
+# electron
+/dist/
+/build/icon.iconset/
+/build/icon.icns
+electron/**/*.js
+electron/**/*.js.map

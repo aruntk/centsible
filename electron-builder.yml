@@ -1,0 +1,30 @@
+appId: com.centsible.app
+productName: Centsible
+directories:
+  output: dist
+files:
+  - electron/**/*.js
+  - package.json
+  - "!node_modules"
+  - "!src"
+  - "!.next"
+  - "!public"
+mac:
+  target: dmg
+  category: public.app-category.finance
+  icon: build/icon.icns
+extraResources:
+  - from: .next/standalone
+    to: standalone
+    filter:
+      - "**/*"
+  - from: .next/static
+    to: standalone/.next/static
+    filter:
+      - "**/*"
+  - from: public
+    to: standalone/public
+    filter:
+      - "**/*"
+  - from: public/logo.png
+    to: icon.png

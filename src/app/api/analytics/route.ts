@@ -1,0 +1,100 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
+
+export async function GET(req: NextRequest) {
+  const sp = req.nextUrl.searchParams;
+  const from = sp.get("from");
+  const to = sp.get("to");
+
+  const db = getDb();
+  const conditions: string[] = [];
+  const params: string[] = [];
+
+  if (from) { conditions.push("date >= ?"); params.push(from); }
+  if (to) { conditions.push("date <= ?"); params.push(to); }
+
+  const where = conditions.length ? "WHERE " + conditions.join(" AND ") : "";
+  const andWhere = conditions.length ? "AND " + conditions.join(" AND ") : "";
+
+  const totalIncome = (db.prepare(`SELECT COALESCE(SUM(deposit), 0) as v FROM transactions ${where}`).get(...params) as { v: number }).v;
+  const totalExpenses = (db.prepare(`SELECT COALESCE(SUM(withdrawal), 0) as v FROM transactions ${where}`).get(...params) as { v: number }).v;
+
+  const byCategory = db.prepare(`
+    SELECT category, SUM(withdrawal) as total, COUNT(*) as count
+    FROM transactions WHERE withdrawal > 0 ${andWhere}
+    GROUP BY category ORDER BY total DESC
+  `).all(...params) as { category: string; total: number; count: number }[];
+
+  const byMonth = db.prepare(`
+    SELECT strftime('%Y-%m', date) as month,
+           SUM(withdrawal) as expenses,
+           SUM(deposit) as income
+    FROM transactions ${where}
+    GROUP BY month ORDER BY month
+  `).all(...params) as { month: string; expenses: number; income: number }[];
+
+  const topMerchants = db.prepare(`
+    SELECT merchant, SUM(withdrawal) as total, COUNT(*) as count
+    FROM transactions WHERE withdrawal > 0 AND merchant != '' ${andWhere}
+    GROUP BY merchant ORDER BY total DESC LIMIT 10
+  `).all(...params) as { merchant: string; total: number; count: number }[];
+
+  const dailySpending = db.prepare(`
+    SELECT date, SUM(withdrawal) as total
+    FROM transactions WHERE withdrawal > 0 ${andWhere}
+    GROUP BY date ORDER BY date
+  `).all(...params) as { date: string; total: number }[];
+
+  const investmentByMonth = db.prepare(`
+    SELECT strftime('%Y-%m', date) as month, SUM(withdrawal) as total
+    FROM transactions WHERE category = 'Investments' AND withdrawal > 0 ${andWhere}
+    GROUP BY month ORDER BY month
+  `).all(...params) as { month: string; total: number }[];
+
+  // Total months span (first to last transaction) for accurate monthly averages
+  const monthSpan = db.prepare(`
+    SELECT MIN(date) as first_date, MAX(date) as last_date FROM transactions ${where}
+  `).get(...params) as { first_date: string | null; last_date: string | null };
+
+  let totalMonths = 1;
+  if (monthSpan.first_date && monthSpan.last_date) {
+    const d1 = new Date(monthSpan.first_date);
+    const d2 = new Date(monthSpan.last_date);
+    totalMonths = Math.max(1, (d2.getFullYear() - d1.getFullYear()) * 12 + d2.getMonth() - d1.getMonth() + 1);
+  }
+
+  const totalInvestments = investmentByMonth.reduce((s, m) => s + m.total, 0);
+  const avgMonthlyInvestment = totalInvestments / totalMonths;
+
+  const goldByMonth = db.prepare(`
+    SELECT strftime('%Y-%m', date) as month, SUM(withdrawal) as total
+    FROM transactions WHERE category = 'Gold' AND withdrawal > 0 ${andWhere}
+    GROUP BY month ORDER BY month
+  `).all(...params) as { month: string; total: number }[];
+
+  const totalGold = goldByMonth.reduce((s, m) => s + m.total, 0);
+  const avgMonthlyGold = totalGold / totalMonths;
+
+  const realEstateByMonth = db.prepare(`
+    SELECT strftime('%Y-%m', date) as month, SUM(withdrawal) as total
+    FROM transactions WHERE category = 'Real Estate' AND withdrawal > 0 ${andWhere}
+    GROUP BY month ORDER BY month
+  `).all(...params) as { month: string; total: number }[];
+
+  const totalRealEstate = realEstateByMonth.reduce((s, m) => s + m.total, 0);
+  const avgMonthlyRealEstate = totalRealEstate / totalMonths;
+
+  return NextResponse.json({
+    totalIncome,
+    totalExpenses,
+    balance: totalIncome - totalExpenses,
+    byCategory,
+    byMonth,
+    topMerchants,
+    dailySpending,
+    investmentByMonth,
+    avgMonthlyInvestment,
+    avgMonthlyGold,
+    avgMonthlyRealEstate,
+  });
+}
