@@ -22,7 +22,11 @@ export const metadata: Metadata = {
 const themeScript = `
 (function(){
   var t = localStorage.getItem('theme');
-  if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+  if (!t) {
+    var m = document.cookie.match(/(?:^|; )theme=([^;]*)/);
+    if (m) t = m[1];
+  }
+  if (t === 'dark') {
     document.documentElement.classList.add('dark');
   }
 })();
