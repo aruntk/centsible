@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, List, Upload, Tags, KeyRound, Calculator, Users } from "lucide-react";
+import { LayoutDashboard, List, Upload, Tags, KeyRound, Calculator, Users, RefreshCw } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
 
 const links = [
@@ -13,6 +13,7 @@ const links = [
   { href: "/sip", label: "SIP Calc", icon: Calculator },
   { href: "/friends", label: "Friends", icon: Users },
   { href: "/import", label: "Import", icon: Upload },
+  { href: "/updates", label: "Updates", icon: RefreshCw },
 ];
 
 export default function Nav() {
