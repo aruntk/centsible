@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { categorizeTransaction } from "@/lib/categorizer";
+import { parseCSVLine } from "@/lib/parsers/utils";
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,36 +41,6 @@ export async function POST(req: NextRequest) {
         { error: "CSV must have at least 'Date' and 'Narration' columns" },
         { status: 400 }
       );
-    }
-
-    function parseCSVLine(line: string): string[] {
-      const result: string[] = [];
-      let current = "";
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        if (inQuotes) {
-          if (ch === '"' && line[i + 1] === '"') {
-            current += '"';
-            i++;
-          } else if (ch === '"') {
-            inQuotes = false;
-          } else {
-            current += ch;
-          }
-        } else {
-          if (ch === '"') {
-            inQuotes = true;
-          } else if (ch === ",") {
-            result.push(current.trim());
-            current = "";
-          } else {
-            current += ch;
-          }
-        }
-      }
-      result.push(current.trim());
-      return result;
     }
 
     const db = getDb();

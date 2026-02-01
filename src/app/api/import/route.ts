@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { parseHDFCStatement } from "@/lib/parser";
+import { parseStatement } from "@/lib/parsers";
 import { categorizeTransaction } from "@/lib/categorizer";
 
 export async function POST(req: NextRequest) {
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
 
     const text = await file.text();
-    const parsed = parseHDFCStatement(text);
+    const { bank, transactions: parsed } = parseStatement(text, file.name);
 
     if (parsed.length === 0) {
       return NextResponse.json({ error: "No transactions found in file" }, { status: 400 });
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     tx();
 
-    return NextResponse.json({ imported, skipped, total: parsed.length });
+    return NextResponse.json({ imported, skipped, total: parsed.length, bank });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
