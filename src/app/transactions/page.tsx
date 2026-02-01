@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef, useSyncExternalStore } from "react";
+import { Suspense, useEffect, useState, useCallback, useMemo, useRef, useSyncExternalStore } from "react";
 import { AgGridReact } from "ag-grid-react";
 import { AllCommunityModule, ModuleRegistry, type ColDef, type CellValueChangedEvent, themeQuartz, colorSchemeDark, colorSchemeLight } from "ag-grid-community";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import SelectionRulePopover from "@/components/SelectionRulePopover";
+import TimeFilter from "@/components/TimeFilter";
+import { useTimeFilter } from "@/hooks/useTimeFilter";
 import { Plus, ChevronUp, Upload, Download } from "lucide-react";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -46,23 +48,30 @@ const emptyForm = {
   category: "Other",
 };
 
-export default function TransactionsPage() {
+function TransactionsInner() {
   const isDark = useSyncExternalStore(subscribeTheme, getIsDark, () => false);
   const gridTheme = useMemo(
     () => themeQuartz.withPart(isDark ? colorSchemeDark : colorSchemeLight),
     [isDark]
   );
+  const { apiParams } = useTimeFilter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [balanceData, setBalanceData] = useState<{ openingBalance: number; closingBalance: number } | null>(null);
   const gridRef = useRef<AgGridReact>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [importResult, setImportResult] = useState("");
 
   const load = useCallback(() => {
-    fetch("/api/transactions?limit=10000")
+    const txParams = new URLSearchParams(apiParams);
+    txParams.set("limit", "10000");
+    fetch(`/api/transactions?${txParams}`)
       .then((r) => r.json())
       .then((d) => setTransactions(d.transactions));
-  }, []);
+    fetch(`/api/analytics?${apiParams}`)
+      .then((r) => r.json())
+      .then((d) => setBalanceData({ openingBalance: d.openingBalance, closingBalance: d.closingBalance }));
+  }, [apiParams]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -211,9 +220,10 @@ export default function TransactionsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Transactions</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <TimeFilter />
           {importResult && <span className="text-sm text-emerald-600 dark:text-emerald-400">{importResult}</span>}
           <span className="text-sm text-gray-500 dark:text-gray-400">{transactions.length} transactions</span>
           <button
@@ -243,6 +253,13 @@ export default function TransactionsPage() {
           </button>
         </div>
       </div>
+      {balanceData && (
+        <div className="flex items-center gap-3 bg-white dark:bg-gray-900 rounded-lg border dark:border-gray-800 px-4 py-2.5 shadow-sm text-sm">
+          <span className="text-purple-600 dark:text-purple-400 font-medium">Opening: {formatCurrency(balanceData.openingBalance)}</span>
+          <span className="text-gray-300 dark:text-gray-600">→</span>
+          <span className="text-amber-600 dark:text-amber-400 font-medium">Closing: {formatCurrency(balanceData.closingBalance)}</span>
+        </div>
+      )}
       {showForm && (
         <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-4 shadow-sm space-y-3">
           <div className="flex flex-wrap gap-3 items-end">
@@ -318,7 +335,7 @@ export default function TransactionsPage() {
         </div>
       )}
       <SelectionRulePopover onRuleAdded={load} />
-      <div style={{ height: "calc(100vh - 140px)", width: "100%" }}>
+      <div style={{ height: "calc(100vh - 180px)", width: "100%" }}>
         <AgGridReact
           theme={gridTheme}
           ref={gridRef}
@@ -335,5 +352,13 @@ export default function TransactionsPage() {
         />
       </div>
     </div>
+  );
+}
+
+export default function TransactionsPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-20 text-gray-400">Loading...</div>}>
+      <TransactionsInner />
+    </Suspense>
   );
 }

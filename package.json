@@ -1,6 +1,6 @@
 {
   "name": "centsible",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -13,6 +13,7 @@
     "electron:build": "npm run build && npm run electron:compile && electron-builder --mac",
     "electron:build:win": "npm run build && npm run electron:compile && electron-builder --win",
     "electron:build:all": "npm run build && npm run electron:compile && electron-builder --mac --win",
+    "release": "bash scripts/release.sh",
     "postinstall": "electron-rebuild || true"
   },
   "dependencies": {

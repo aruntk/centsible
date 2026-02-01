@@ -1,17 +1,22 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import DashboardCards from "@/components/DashboardCards";
 import CategoryPieChart from "@/components/CategoryPieChart";
 import MonthlyBarChart from "@/components/MonthlyBarChart";
 import SpendingTrend from "@/components/SpendingTrend";
 import InvestmentBarChart from "@/components/InvestmentBarChart";
+import TimeFilter from "@/components/TimeFilter";
+import { useTimeFilter } from "@/hooks/useTimeFilter";
 import { formatCurrency } from "@/lib/utils";
 
 type Analytics = {
   totalIncome: number;
   totalExpenses: number;
   balance: number;
+  openingBalance: number;
+  closingBalance: number;
+  currentBalance: number;
   byCategory: { category: string; total: number; count: number }[];
   byMonth: { month: string; expenses: number; income: number }[];
   topMerchants: { merchant: string; total: number; count: number }[];
@@ -20,43 +25,13 @@ type Analytics = {
   avgMonthlyInvestment: number;
 };
 
-// Indian financial years: April to March
-function getFYOptions(): { label: string; from: string; to: string }[] {
-  const now = new Date();
-  const currentYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  const options: { label: string; from: string; to: string }[] = [];
-  for (let y = currentYear; y >= currentYear - 5; y--) {
-    options.push({
-      label: `FY ${y}-${String(y + 1).slice(2)}`,
-      from: `${y}-04-01`,
-      to: `${y + 1}-03-31`,
-    });
-  }
-  return options;
-}
-
-const FY_OPTIONS = getFYOptions();
-
-export default function DashboardPage() {
+function DashboardInner() {
+  const { preset, apiParams } = useTimeFilter();
   const [data, setData] = useState<Analytics | null>(null);
-  const [preset, setPreset] = useState("all");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
 
   const load = useCallback(() => {
-    const params = new URLSearchParams();
-    if (preset === "custom") {
-      if (from) params.set("from", from);
-      if (to) params.set("to", to);
-    } else if (preset !== "all") {
-      const fy = FY_OPTIONS.find((f) => f.label === preset);
-      if (fy) {
-        params.set("from", fy.from);
-        params.set("to", fy.to);
-      }
-    }
-    fetch(`/api/analytics?${params}`).then((r) => r.json()).then(setData);
-  }, [preset, from, to]);
+    fetch(`/api/analytics?${apiParams}`).then((r) => r.json()).then(setData);
+  }, [apiParams]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -74,40 +49,23 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={preset}
-            onChange={(e) => setPreset(e.target.value)}
-            className="border dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
-          >
-            <option value="all">All Time</option>
-            {FY_OPTIONS.map((fy) => (
-              <option key={fy.label} value={fy.label}>{fy.label}</option>
-            ))}
-            <option value="custom">Custom Range</option>
-          </select>
-          {preset === "custom" && (
-            <>
-              <input
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                className="border dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
-              />
-              <span className="text-sm text-gray-400">to</span>
-              <input
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                className="border dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
-              />
-            </>
-          )}
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-500 dark:text-gray-400">Current Balance:</span>
+            <span className="font-semibold text-gray-900 dark:text-gray-100">{formatCurrency(data.currentBalance)}</span>
+          </div>
         </div>
+        <TimeFilter />
       </div>
 
-      <DashboardCards totalIncome={data.totalIncome} totalExpenses={data.totalExpenses} balance={data.balance} />
+      <DashboardCards
+        totalIncome={data.totalIncome}
+        totalExpenses={data.totalExpenses}
+        balance={data.balance}
+        openingBalance={data.openingBalance}
+        closingBalance={data.closingBalance}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
@@ -146,5 +104,13 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-20 text-gray-400">Loading...</div>}>
+      <DashboardInner />
+    </Suspense>
   );
 }

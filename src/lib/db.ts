@@ -36,6 +36,11 @@ function initSchema(db: Database.Database) {
       FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL,

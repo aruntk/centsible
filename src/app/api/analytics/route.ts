@@ -66,6 +66,21 @@ export async function GET(req: NextRequest) {
   const totalInvestments = investmentByMonth.reduce((s, m) => s + m.total, 0);
   const avgMonthlyInvestment = totalInvestments / totalMonths;
 
+  // Balance computation — derive current balance from last transaction's closing_balance
+  const lastTx = db.prepare("SELECT closing_balance FROM transactions ORDER BY date DESC, id DESC LIMIT 1").get() as { closing_balance: number } | undefined;
+  const currentBalance = lastTx?.closing_balance ?? 0;
+
+  let openingBalance = 0;
+  let closingBalance = 0;
+
+  if (to) {
+    const netAfter = (db.prepare("SELECT COALESCE(SUM(deposit), 0) - COALESCE(SUM(withdrawal), 0) as v FROM transactions WHERE date > ?").get(to) as { v: number }).v;
+    closingBalance = currentBalance - netAfter;
+  } else {
+    closingBalance = currentBalance;
+  }
+  openingBalance = closingBalance - (totalIncome - totalExpenses);
+
   const goldByMonth = db.prepare(`
     SELECT strftime('%Y-%m', date) as month, SUM(withdrawal) as total
     FROM transactions WHERE category = 'Gold' AND withdrawal > 0 ${andWhere}
@@ -88,6 +103,9 @@ export async function GET(req: NextRequest) {
     totalIncome,
     totalExpenses,
     balance: totalIncome - totalExpenses,
+    openingBalance,
+    closingBalance,
+    currentBalance,
     byCategory,
     byMonth,
     topMerchants,
