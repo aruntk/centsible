@@ -2,6 +2,10 @@
 
 Personal finance tracker. Import bank statements or add transactions manually, auto-categorize with keyword rules, and view spending analytics — all stored locally in SQLite.
 
+## Download
+
+Pre-built desktop apps (macOS DMG & Windows installer) are available on the [Releases](https://github.com/aruntk/centsible/releases) page.
+
 ## Features
 
 - Import transactions from HDFC bank statements or CSV files
