@@ -11,6 +11,8 @@
     "electron:compile": "tsc -p tsconfig.electron.json",
     "electron:dev": "npm run build && npm run electron:compile && electron .",
     "electron:build": "npm run build && npm run electron:compile && electron-builder --mac",
+    "electron:build:win": "npm run build && npm run electron:compile && electron-builder --win",
+    "electron:build:all": "npm run build && npm run electron:compile && electron-builder --mac --win",
     "postinstall": "electron-rebuild || true"
   },
   "dependencies": {

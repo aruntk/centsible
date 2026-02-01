@@ -46,3 +46,30 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ transactions, total, page, limit });
 }
+
+export async function POST(req: NextRequest) {
+  const body = await req.json();
+  const { date, narration, withdrawal, deposit, category, merchant, ref_no, closing_balance } = body;
+
+  if (!date || !narration) {
+    return NextResponse.json({ error: "Date and narration are required" }, { status: 400 });
+  }
+
+  const db = getDb();
+  const result = db.prepare(
+    `INSERT INTO transactions (date, narration, ref_no, value_date, withdrawal, deposit, closing_balance, category, merchant)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    date,
+    narration,
+    ref_no || null,
+    date,
+    withdrawal || 0,
+    deposit || 0,
+    closing_balance || 0,
+    category || "Other",
+    merchant || "",
+  );
+
+  return NextResponse.json({ id: result.lastInsertRowid });
+}
