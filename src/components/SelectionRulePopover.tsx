@@ -14,6 +14,7 @@ export default function SelectionRulePopover({ onRuleAdded }: { onRuleAdded?: ()
   const [priority, setPriority] = useState(5);
   const [applyExisting, setApplyExisting] = useState(true);
   const [expanded, setExpanded] = useState(false);
+  const [showMobileInput, setShowMobileInput] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const isMobile = useRef(false);
 
@@ -48,7 +49,6 @@ export default function SelectionRulePopover({ onRuleAdded }: { onRuleAdded?: ()
       return;
     }
 
-    // Small delay on touch to let selection stabilize and system menu appear first
     const processSelection = () => {
       const sel = window.getSelection();
       const text = sel?.toString().trim() ?? "";
@@ -64,19 +64,21 @@ export default function SelectionRulePopover({ onRuleAdded }: { onRuleAdded?: ()
       const rect = range.getBoundingClientRect();
       setSelection(text);
 
-      // On mobile, position below selection to avoid system menu conflict
-      const isTouch = e.type === "touchend" || isMobile.current;
-      if (isTouch) {
-        setPos({ x: rect.left + rect.width / 2, y: rect.bottom + 8, below: true });
+      // On mobile, show a bottom floating button instead of inline popover
+      // This avoids conflict with system selection menu
+      if (isMobile.current) {
+        setShowMobileInput(true);
+        setPos(null);
       } else {
         setPos({ x: rect.left + rect.width / 2, y: rect.top - 8, below: false });
+        setShowMobileInput(false);
       }
       setExpanded(false);
     };
 
     if (e.type === "touchend") {
-      // Delay on touch to let system menu appear and user dismiss it
-      setTimeout(processSelection, 300);
+      // Longer delay on mobile to let user interact with system menu first
+      setTimeout(processSelection, 500);
     } else {
       processSelection();
     }
@@ -94,13 +96,15 @@ export default function SelectionRulePopover({ onRuleAdded }: { onRuleAdded?: ()
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (popoverRef.current?.contains(e.target as Node)) return;
+      // Don't close on mobile if the mobile input is showing (handled by overlay)
+      if (isMobile.current && showMobileInput) return;
       setPos(null);
       setSelection("");
       setExpanded(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [showMobileInput]);
 
   const addRule = async () => {
     if (isCapacitor()) {
@@ -133,10 +137,78 @@ export default function SelectionRulePopover({ onRuleAdded }: { onRuleAdded?: ()
     setPos(null);
     setSelection("");
     setExpanded(false);
+    setShowMobileInput(false);
     window.getSelection()?.removeAllRanges();
     onRuleAdded?.();
   };
 
+  const closeMobile = () => {
+    setShowMobileInput(false);
+    setSelection("");
+    setExpanded(false);
+    window.getSelection()?.removeAllRanges();
+  };
+
+  // Mobile: show bottom sheet style UI
+  if (showMobileInput && selection) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/30" onClick={closeMobile}>
+        <div
+          ref={popoverRef}
+          className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-t-2xl shadow-xl p-4 space-y-3"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Create Rule</span>
+            <button onClick={closeMobile} className="text-gray-400 text-xl leading-none">&times;</button>
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            Keyword: <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{selection.length > 40 ? selection.slice(0, 40) + "..." : selection}</code>
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Category</label>
+            <select
+              value={catId}
+              onChange={(e) => setCatId(Number(e.target.value))}
+              className="w-full border dark:border-gray-700 rounded-lg px-3 py-2 text-base bg-white dark:bg-gray-800 dark:text-gray-200"
+            >
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-3 items-end">
+            <div className="flex-1">
+              <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Priority</label>
+              <input
+                type="number"
+                value={priority}
+                onChange={(e) => setPriority(Number(e.target.value))}
+                className="w-full border dark:border-gray-700 rounded-lg px-3 py-2 text-base bg-white dark:bg-gray-800 dark:text-gray-200"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 pb-2">
+              <input
+                type="checkbox"
+                checked={applyExisting}
+                onChange={(e) => setApplyExisting(e.target.checked)}
+                className="w-4 h-4"
+              />
+              Apply to existing
+            </label>
+          </div>
+          <button
+            onClick={addRule}
+            className="w-full bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-4 py-3 rounded-lg text-base font-medium"
+          >
+            Add Rule
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop: inline popover
   if (!pos || !selection) return null;
 
   return (

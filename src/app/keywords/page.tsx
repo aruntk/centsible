@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { CheckCircle, Plus } from "lucide-react";
+import { isCapacitor } from "@/lib/platform";
 
 type Keyword = {
   keyword: string;
@@ -25,31 +26,64 @@ export default function KeywordsPage() {
   const [priority, setPriority] = useState(5);
   const [loading, setLoading] = useState(false);
 
-  const load = useCallback(() => {
-    fetch("/api/keywords").then((r) => r.json()).then((d) => setKeywords(d.keywords));
+  const load = useCallback(async () => {
+    if (isCapacitor()) {
+      const { initClientDb, getKeywords } = await import("@/lib/db-client");
+      await initClientDb();
+      const kws = await getKeywords();
+      setKeywords(kws);
+    } else {
+      fetch("/api/keywords").then((r) => r.json()).then((d) => setKeywords(d.keywords || []));
+    }
   }, []);
 
   useEffect(() => {
-    load();
-    fetch("/api/categories").then((r) => r.json()).then((d) => {
-      setCategories(d.categories || d);
-      if (d.categories?.length) setSelectedCat(d.categories[0].id);
-      else if (d.length) setSelectedCat(d[0].id);
-    });
+    const init = async () => {
+      await load();
+      if (isCapacitor()) {
+        const { initClientDb, getCategories } = await import("@/lib/db-client");
+        await initClientDb();
+        const cats = await getCategories();
+        setCategories(cats);
+        if (cats.length) setSelectedCat(cats[0].id);
+      } else {
+        fetch("/api/categories").then((r) => r.json()).then((d) => {
+          setCategories(d.categories || d);
+          if (d.categories?.length) setSelectedCat(d.categories[0].id);
+          else if (d.length) setSelectedCat(d[0].id);
+        });
+      }
+    };
+    init();
   }, [load]);
 
   const createRule = async (keyword: string) => {
     setLoading(true);
-    await fetch("/api/categories/rules", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    if (isCapacitor()) {
+      const { initClientDb, createCategoryRule, recategorizeAllTransactions } = await import("@/lib/db-client");
+      await initClientDb();
+      await createCategoryRule({
         category_id: selectedCat,
         keyword,
         priority,
-        apply_existing: true,
-      }),
-    });
+        condition_field: null,
+        condition_op: null,
+        condition_value: null,
+        condition_value2: null,
+      });
+      await recategorizeAllTransactions();
+    } else {
+      await fetch("/api/categories/rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category_id: selectedCat,
+          keyword,
+          priority,
+          apply_existing: true,
+        }),
+      });
+    }
     setCreating(null);
     setLoading(false);
     load();

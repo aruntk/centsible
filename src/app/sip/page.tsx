@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 import { formatCurrency } from "@/lib/utils";
+import { isCapacitor } from "@/lib/platform";
 
 function computeGrowth(lumpsum: number, monthly: number, annualReturn: number, stepUp: number, years: number) {
   const mr = annualReturn / 100 / 12;
@@ -47,15 +48,28 @@ export default function SIPCalculatorPage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    fetch("/api/analytics")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.avgMonthlyInvestment > 0) setSipMonthly(Math.round(d.avgMonthlyInvestment));
-        if (d.avgMonthlyGold > 0) setGoldMonthly(Math.round(d.avgMonthlyGold));
-        if (d.avgMonthlyRealEstate > 0) setReMonthly(Math.round(d.avgMonthlyRealEstate));
-        setLoaded(true);
-      })
-      .catch(() => setLoaded(true));
+    const loadData = async () => {
+      try {
+        if (isCapacitor()) {
+          const { initClientDb, getFullAnalytics } = await import("@/lib/db-client");
+          await initClientDb();
+          const d = await getFullAnalytics();
+          if (d.avgMonthlyInvestment > 0) setSipMonthly(Math.round(d.avgMonthlyInvestment));
+          if (d.avgMonthlyGold > 0) setGoldMonthly(Math.round(d.avgMonthlyGold));
+          if (d.avgMonthlyRealEstate > 0) setReMonthly(Math.round(d.avgMonthlyRealEstate));
+        } else {
+          const r = await fetch("/api/analytics");
+          const d = await r.json();
+          if (d.avgMonthlyInvestment > 0) setSipMonthly(Math.round(d.avgMonthlyInvestment));
+          if (d.avgMonthlyGold > 0) setGoldMonthly(Math.round(d.avgMonthlyGold));
+          if (d.avgMonthlyRealEstate > 0) setReMonthly(Math.round(d.avgMonthlyRealEstate));
+        }
+      } catch (err) {
+        console.error("Failed to load analytics for SIP:", err);
+      }
+      setLoaded(true);
+    };
+    loadData();
   }, []);
 
   const sipRows = useMemo(() => computeGrowth(sipLumpsum, sipMonthly, sipReturn, sipStepUp, years), [sipLumpsum, sipMonthly, sipReturn, sipStepUp, years]);

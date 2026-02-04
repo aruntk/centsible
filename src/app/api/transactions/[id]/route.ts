@@ -4,7 +4,6 @@ const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 
 // For mobile builds, we need to export a stub route that won't cause build errors
 // For desktop builds, export the actual PATCH handler
-export const dynamic = "force-static";
 export const dynamicParams = false;
 
 export async function generateStaticParams() {

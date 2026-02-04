@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import type { Category, CategoryRule } from "@/lib/db";
 import { logger } from "@/lib/server-logger";
 
-// For static export (mobile builds), mark as force-static
+// For static export (mobile builds), mark as force-dynamic
 // Mobile builds use direct database access via Capacitor, not API routes
-export const dynamic = "force-static";
 
 const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 

@@ -1079,6 +1079,103 @@ export async function recategorizeAllTransactions(): Promise<number> {
 }
 
 // =============================================================================
+// Keywords Operations
+// =============================================================================
+
+export type Keyword = {
+  keyword: string;
+  count: number;
+  samples: string[];
+  has_rule: boolean;
+};
+
+export async function getKeywords(): Promise<Keyword[]> {
+  if (!_db) throw new Error("Database not initialized");
+
+  // Get merchants with counts (non-empty merchant field)
+  const merchantResult = await _db.query(`
+    SELECT merchant AS keyword, COUNT(*) AS count,
+      GROUP_CONCAT(narration, '|||') AS narrations
+    FROM transactions
+    WHERE merchant != '' AND merchant IS NOT NULL
+    GROUP BY merchant
+    HAVING count >= 2
+    ORDER BY count DESC
+    LIMIT 200
+  `);
+
+  const merchantRows = (merchantResult.values || []).map((row) => {
+    if (Array.isArray(row)) {
+      return { keyword: row[0] as string, count: row[1] as number, narrations: row[2] as string };
+    }
+    const o = row as Record<string, unknown>;
+    return { keyword: o.keyword as string, count: o.count as number, narrations: o.narrations as string };
+  });
+
+  // Also extract common narration tokens (first word/token patterns)
+  const tokenResult = await _db.query(`
+    SELECT
+      CASE
+        WHEN narration LIKE 'UPI-%' THEN SUBSTR(narration, 5, INSTR(SUBSTR(narration, 5), '-') - 1)
+        WHEN narration LIKE 'NEFT-%' THEN SUBSTR(narration, 6, INSTR(SUBSTR(narration, 6), '-') - 1)
+        WHEN narration LIKE 'IMPS-%' THEN SUBSTR(narration, 6, INSTR(SUBSTR(narration, 6), '-') - 1)
+        ELSE SUBSTR(narration, 1, INSTR(narration || ' ', ' ') - 1)
+      END AS keyword,
+      COUNT(*) AS count,
+      GROUP_CONCAT(narration, '|||') AS narrations
+    FROM transactions
+    GROUP BY keyword
+    HAVING count >= 3 AND LENGTH(keyword) >= 3
+    ORDER BY count DESC
+    LIMIT 200
+  `);
+
+  const tokenRows = (tokenResult.values || []).map((row) => {
+    if (Array.isArray(row)) {
+      return { keyword: row[0] as string, count: row[1] as number, narrations: row[2] as string };
+    }
+    const o = row as Record<string, unknown>;
+    return { keyword: o.keyword as string, count: o.count as number, narrations: o.narrations as string };
+  });
+
+  // Get existing rules
+  const rulesResult = await _db.query("SELECT LOWER(keyword) AS kw FROM category_rules WHERE keyword IS NOT NULL");
+  const ruleSet = new Set(
+    (rulesResult.values || []).map((row) => {
+      if (Array.isArray(row)) return (row[0] as string || "").toLowerCase();
+      return ((row as Record<string, string>).kw || "").toLowerCase();
+    })
+  );
+
+  // Merge and deduplicate (merchants take priority)
+  const seen = new Set<string>();
+  const allKeywords: Keyword[] = [];
+
+  for (const rows of [merchantRows, tokenRows]) {
+    for (const row of rows) {
+      const key = (row.keyword || "").toLowerCase().trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+
+      const narrationList = (row.narrations || "").split("|||");
+      const samples = narrationList.slice(0, 2);
+
+      allKeywords.push({
+        keyword: row.keyword.trim(),
+        count: row.count,
+        samples,
+        has_rule: ruleSet.has(key),
+      });
+    }
+  }
+
+  // Sort by count descending
+  allKeywords.sort((a, b) => b.count - a.count);
+
+  return allKeywords;
+}
+
+// =============================================================================
 // Helper Functions
 // =============================================================================
 

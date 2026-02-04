@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Transaction } from "@/lib/db";
 import { logger } from "@/lib/server-logger";
 
-export const dynamic = "force-static";
 
 const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 

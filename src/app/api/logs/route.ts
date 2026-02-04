@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerLogs, clearServerLogs } from "@/lib/server-logger";
 
-export const dynamic = "force-static";
 
 const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-export const dynamic = "force-static";
 
 const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 
