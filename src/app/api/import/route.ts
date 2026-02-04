@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/server-logger";
 
 export const dynamic = "force-static";
 
@@ -13,14 +14,20 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     if (!file) {
+      logger.warn("import", "No file provided in request");
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
+
+    logger.info("import", `Importing file: ${file.name} (${file.size} bytes)`);
 
     const text = await file.text();
     const { parseStatement } = await import("@/lib/parsers");
     const { bank, transactions: parsed } = parseStatement(text, file.name);
 
+    logger.info("import", `Parsed ${parsed.length} transactions from ${bank || "unknown bank"}`);
+
     if (parsed.length === 0) {
+      logger.warn("import", "No transactions found in file");
       return NextResponse.json({ error: "No transactions found in file" }, { status: 400 });
     }
 
@@ -55,9 +62,16 @@ export async function POST(req: NextRequest) {
 
     tx();
 
+    logger.info("import", `Import complete: ${imported} imported, ${skipped} skipped`, {
+      imported,
+      skipped,
+      total: parsed.length,
+      bank,
+    });
     return NextResponse.json({ imported, skipped, total: parsed.length, bank });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
+    logger.error("import", `Import failed: ${message}`);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

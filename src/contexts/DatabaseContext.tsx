@@ -29,7 +29,7 @@ interface DatabaseContextType {
   deleteCategoryRule: (id: number) => Promise<void>;
 
   // Analytics
-  getAnalytics: (from?: string, to?: string) => Promise<clientDb.AnalyticsResult>;
+  getAnalytics: (from?: string, to?: string) => Promise<clientDb.FullAnalyticsResult>;
 
   // Import
   importTransactions: (
@@ -224,7 +224,7 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
   const getAnalytics = useCallback(
     async (from?: string, to?: string) => {
       if (isMobileDb) {
-        return clientDb.getAnalytics(from, to);
+        return clientDb.getFullAnalytics(from, to);
       }
       const sp = new URLSearchParams();
       if (from) sp.set("from", from);

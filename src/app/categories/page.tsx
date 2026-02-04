@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import CategoryBadge from "@/components/CategoryBadge";
 import { writeFileToDocuments } from "@/lib/file-picker";
+import { isCapacitor } from "@/lib/platform";
 import { Trash2, Plus, RefreshCw, Pencil, Check, X, Download, Upload, AlertTriangle } from "lucide-react";
 
 type Category = { id: number; name: string; color: string; icon: string };
@@ -57,38 +58,65 @@ export default function CategoriesPage() {
   const [newCatError, setNewCatError] = useState("");
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState("");
-
-  const load = () => {
-    fetch("/api/categories").then((r) => r.json()).then((d) => {
+  const load = useCallback(async () => {
+    if (isCapacitor()) {
+      const { initClientDb, getCategories, getCategoryRules } = await import("@/lib/db-client");
+      await initClientDb();
+      const cats = await getCategories();
+      const rls = await getCategoryRules();
+      setCategories(cats);
+      setRules(rls);
+      if (cats.length && !newCatId) setNewCatId(cats[0].id);
+    } else {
+      const res = await fetch("/api/categories");
+      const d = await res.json();
       setCategories(d.categories);
       setRules(d.rules);
       if (d.categories.length && !newCatId) setNewCatId(d.categories[0].id);
-    });
-  };
+    }
+  }, [newCatId]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const addRule = async () => {
     if (!newKeyword.trim() && !condField) return;
-    const body: Record<string, unknown> = {
-      category_id: newCatId,
-      priority: newPriority,
-      apply_existing: applyExisting,
-    };
-    if (newKeyword.trim()) body.keyword = newKeyword.trim();
-    if (condField && condValue) {
-      body.condition_field = condField;
-      body.condition_op = condOp;
-      body.condition_value = Number(condValue);
-      if (condOp === "between" && condValue2) {
-        body.condition_value2 = Number(condValue2);
+
+    if (isCapacitor()) {
+      const { initClientDb, createCategoryRule } = await import("@/lib/db-client");
+      await initClientDb();
+      await createCategoryRule({
+        category_id: newCatId,
+        keyword: newKeyword.trim() || null,
+        priority: newPriority,
+        condition_field: condField || null,
+        condition_op: condField ? condOp : null,
+        condition_value: condField && condValue ? Number(condValue) : null,
+        condition_value2: condField && condOp === "between" && condValue2 ? Number(condValue2) : null,
+      });
+    } else {
+      const body: Record<string, unknown> = {
+        category_id: newCatId,
+        priority: newPriority,
+        apply_existing: applyExisting,
+      };
+      if (newKeyword.trim()) body.keyword = newKeyword.trim();
+      if (condField && condValue) {
+        body.condition_field = condField;
+        body.condition_op = condOp;
+        body.condition_value = Number(condValue);
+        if (condOp === "between" && condValue2) {
+          body.condition_value2 = Number(condValue2);
+        }
       }
+      await fetch("/api/categories/rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
     }
-    await fetch("/api/categories/rules", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+
     setNewKeyword("");
     setCondField("");
     setCondValue("");
@@ -102,15 +130,49 @@ export default function CategoriesPage() {
   const recategorizeAll = async () => {
     setRecatLoading(true);
     setRecatResult("");
-    const res = await fetch("/api/recategorize", { method: "POST" });
-    const data = await res.json();
-    setRecatResult(`Re-categorized ${data.recategorized} transactions`);
+
+    try {
+      if (isCapacitor()) {
+        const { initClientDb, recategorizeAllTransactions } = await import("@/lib/db-client");
+        await initClientDb();
+        const count = await recategorizeAllTransactions();
+        setRecatResult(`Re-categorized ${count} transactions`);
+      } else {
+        const res = await fetch("/api/recategorize", { method: "POST" });
+        const data = await res.json();
+        setRecatResult(`Re-categorized ${data.recategorized} transactions`);
+      }
+    } catch (error) {
+      console.error("Recategorize error:", error);
+      setRecatResult(error instanceof Error ? error.message : "Recategorization failed");
+    }
+
     setRecatLoading(false);
   };
 
   const exportRules = async () => {
-    const res = await fetch("/api/categories/rules/export");
-    const data = await res.json();
+    let data;
+    if (isCapacitor()) {
+      const { initClientDb, getCategories, getCategoryRules } = await import("@/lib/db-client");
+      await initClientDb();
+      const cats = await getCategories();
+      const rls = await getCategoryRules();
+      data = {
+        categories: cats.map(c => ({ name: c.name, color: c.color, icon: c.icon })),
+        rules: rls.map(r => ({
+          category_name: r.category_name,
+          keyword: r.keyword,
+          priority: r.priority,
+          condition_field: r.condition_field,
+          condition_op: r.condition_op,
+          condition_value: r.condition_value,
+          condition_value2: r.condition_value2,
+        })),
+      };
+    } else {
+      const res = await fetch("/api/categories/rules/export");
+      data = await res.json();
+    }
     const content = JSON.stringify(data, null, 2);
     const success = await writeFileToDocuments("category-rules.json", content);
     if (success) {
@@ -127,42 +189,83 @@ export default function CategoriesPage() {
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-      const text = await file.text();
-      const data = JSON.parse(text);
-      const res = await fetch("/api/categories/rules/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      const result = await res.json();
-      setRecatResult(`Imported ${result.imported} rules, skipped ${result.skipped}`);
-      load();
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+
+        let result: { imported: number; skipped: number };
+        if (isCapacitor()) {
+          // Mobile: use client-side database
+          const { initClientDb, importCategoryRules } = await import("@/lib/db-client");
+          await initClientDb();
+          result = await importCategoryRules(data.rules || [], data.categories || []);
+        } else {
+          // Desktop: use API route
+          const res = await fetch("/api/categories/rules/import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+          if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(errorText || `HTTP ${res.status}`);
+          }
+          const json = await res.json();
+          if (json.error) {
+            throw new Error(json.error);
+          }
+          result = { imported: json.imported || 0, skipped: json.skipped || 0 };
+        }
+        setRecatResult(`Imported ${result.imported} rules, skipped ${result.skipped}`);
+        load();
+      } catch (err) {
+        setRecatResult(err instanceof Error ? err.message : "Import failed");
+      }
     };
     input.click();
   };
 
   const deleteRule = async (id: number) => {
-    await fetch("/api/categories/rules", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
+    if (isCapacitor()) {
+      const { initClientDb, deleteCategoryRule } = await import("@/lib/db-client");
+      await initClientDb();
+      await deleteCategoryRule(id);
+    } else {
+      await fetch("/api/categories/rules", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+    }
     load();
   };
 
   const addCategory = async () => {
     if (!newCatName.trim()) return;
     setNewCatError("");
-    const res = await fetch("/api/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newCatName.trim(), color: newCatColor }),
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      setNewCatError(data.error || "Failed to create category");
-      return;
+
+    if (isCapacitor()) {
+      try {
+        const { initClientDb, createCategory } = await import("@/lib/db-client");
+        await initClientDb();
+        await createCategory(newCatName.trim(), newCatColor, "tag");
+      } catch (err) {
+        setNewCatError(err instanceof Error ? err.message : "Failed to create category");
+        return;
+      }
+    } else {
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newCatName.trim(), color: newCatColor }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setNewCatError(data.error || "Failed to create category");
+        return;
+      }
     }
+
     setNewCatName("");
     setNewCatColor("#6b7280");
     load();
@@ -188,25 +291,41 @@ export default function CategoriesPage() {
 
   const saveEdit = async () => {
     if (!editState || editingId == null) return;
-    const body: Record<string, unknown> = {
-      id: editingId,
-      category_id: editState.category_id,
-      keyword: editState.keyword || null,
-      priority: editState.priority,
-    };
-    if (editState.condField && editState.condValue) {
-      body.condition_field = editState.condField;
-      body.condition_op = editState.condOp;
-      body.condition_value = Number(editState.condValue);
-      if (editState.condOp === "between" && editState.condValue2) {
-        body.condition_value2 = Number(editState.condValue2);
+
+    if (isCapacitor()) {
+      const { initClientDb, updateCategoryRule } = await import("@/lib/db-client");
+      await initClientDb();
+      await updateCategoryRule(editingId, {
+        category_id: editState.category_id,
+        keyword: editState.keyword || null,
+        priority: editState.priority,
+        condition_field: editState.condField || null,
+        condition_op: editState.condField ? editState.condOp : null,
+        condition_value: editState.condField && editState.condValue ? Number(editState.condValue) : null,
+        condition_value2: editState.condField && editState.condOp === "between" && editState.condValue2 ? Number(editState.condValue2) : null,
+      });
+    } else {
+      const body: Record<string, unknown> = {
+        id: editingId,
+        category_id: editState.category_id,
+        keyword: editState.keyword || null,
+        priority: editState.priority,
+      };
+      if (editState.condField && editState.condValue) {
+        body.condition_field = editState.condField;
+        body.condition_op = editState.condOp;
+        body.condition_value = Number(editState.condValue);
+        if (editState.condOp === "between" && editState.condValue2) {
+          body.condition_value2 = Number(editState.condValue2);
+        }
       }
+      await fetch("/api/categories/rules", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
     }
-    await fetch("/api/categories/rules", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+
     cancelEdit();
     load();
   };
@@ -216,52 +335,58 @@ export default function CategoriesPage() {
     setEditState({ ...editState, [field]: value });
   };
 
-  const inputCls = "border dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-200";
+  const inputCls = "border dark:border-gray-700 rounded-lg px-2 py-1.5 sm:px-3 sm:py-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-200";
   const inputSmCls = "border dark:border-gray-700 rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200";
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Categories & Rules</h1>
-        <div className="flex items-center gap-3">
-          {recatResult && <span className="text-sm text-emerald-600 dark:text-emerald-400">{recatResult}</span>}
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header */}
+      <div className="space-y-2 sm:space-y-0 sm:flex sm:items-center sm:justify-between">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">Categories & Rules</h1>
+        <div className="flex items-center gap-2">
           <button
             onClick={exportRules}
-            className="flex items-center gap-1.5 border dark:border-gray-700 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
+            className="flex items-center gap-1 border dark:border-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
           >
-            <Download className="w-4 h-4" /> Export
+            <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Export</span>
           </button>
           <button
             onClick={importRules}
-            className="flex items-center gap-1.5 border dark:border-gray-700 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
+            className="flex items-center gap-1 border dark:border-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
           >
-            <Upload className="w-4 h-4" /> Import
+            <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">Import</span>
           </button>
           <button
             onClick={recategorizeAll}
             disabled={recatLoading}
-            className="flex items-center gap-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50"
+            className="flex items-center gap-1 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-2 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-gray-800 dark:hover:bg-gray-200 disabled:opacity-50"
           >
-            <RefreshCw className={`w-4 h-4 ${recatLoading ? "animate-spin" : ""}`} />
-            {recatLoading ? "Re-categorizing..." : "Re-categorize All"}
+            <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${recatLoading ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">{recatLoading ? "Processing..." : "Re-categorize"}</span>
           </button>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
-        <h2 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">Add Rule</h2>
-        <div className="flex flex-wrap gap-3 items-end">
-          <div>
+      {/* Status message */}
+      {recatResult && (
+        <div className="text-xs sm:text-sm text-emerald-600 dark:text-emerald-400">{recatResult}</div>
+      )}
+
+      <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-3 sm:p-5 shadow-sm">
+        <h2 className="font-semibold text-gray-700 dark:text-gray-300 mb-2 sm:mb-3 text-sm sm:text-base">Add Rule</h2>
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3 items-end">
+          <div className="col-span-1">
             <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Category</label>
             <select
-              value={newCatId}
+              value={newCatId || ""}
               onChange={(e) => setNewCatId(Number(e.target.value))}
-              className={inputCls}
+              className={`w-full ${inputCls}`}
             >
+              {!newCatId && <option value="">Select category...</option>}
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
-          <div className="flex-1 min-w-[200px]">
+          <div className="col-span-1 sm:flex-1 sm:min-w-[200px]">
             <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Keyword (narration match)</label>
             <input
               type="text"
@@ -271,72 +396,73 @@ export default function CategoriesPage() {
               className={`w-full ${inputCls}`}
             />
           </div>
-          <div>
+          <div className="col-span-2 sm:col-span-1 sm:w-20">
             <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Priority</label>
             <input
               type="number"
               value={newPriority}
               onChange={(e) => setNewPriority(Number(e.target.value))}
-              className={`${inputCls} w-20`}
+              className={`w-full ${inputCls}`}
             />
           </div>
         </div>
-        <div className="flex flex-wrap gap-3 items-end mt-3">
-          <div>
-            <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Amount condition</label>
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3 items-end mt-2 sm:mt-3">
+          <div className="col-span-1">
+            <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Condition</label>
             <select
               value={condField}
               onChange={(e) => setCondField(e.target.value)}
-              className={inputCls}
+              className={`w-full ${inputCls}`}
             >
               <option value="">None</option>
-              <option value="withdrawal">Withdrawal</option>
-              <option value="deposit">Deposit</option>
+              <option value="withdrawal">Debit</option>
+              <option value="deposit">Credit</option>
             </select>
           </div>
           {condField && (
             <>
-              <div>
-                <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Operator</label>
+              <div className="col-span-1">
+                <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Op</label>
                 <select
                   value={condOp}
                   onChange={(e) => setCondOp(e.target.value)}
-                  className={inputCls}
+                  className={`w-full ${inputCls}`}
                 >
                   {OPS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
-              <div>
-                <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">{condOp === "between" ? "Min" : "Amount"}</label>
+              <div className="col-span-1">
+                <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">{condOp === "between" ? "Min" : "Amt"}</label>
                 <input
                   type="number"
                   value={condValue}
                   onChange={(e) => setCondValue(e.target.value)}
-                  placeholder="e.g. 500"
-                  className={`${inputCls} w-28`}
+                  placeholder="500"
+                  className={`w-full ${inputCls}`}
                 />
               </div>
               {condOp === "between" && (
-                <div>
+                <div className="col-span-1">
                   <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Max</label>
                   <input
                     type="number"
                     value={condValue2}
                     onChange={(e) => setCondValue2(e.target.value)}
-                    placeholder="e.g. 2000"
-                    className={`${inputCls} w-28`}
+                    placeholder="2000"
+                    className={`w-full ${inputCls}`}
                   />
                 </div>
               )}
             </>
           )}
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <label className="col-span-1 flex items-center gap-1.5 text-xs sm:text-sm text-gray-600 dark:text-gray-400">
             <input type="checkbox" checked={applyExisting} onChange={(e) => setApplyExisting(e.target.checked)} />
-            Apply to existing
+            <span className="hidden sm:inline">Apply to existing</span>
+            <span className="sm:hidden">Apply</span>
           </label>
           <button
             onClick={addRule}
-            className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 hover:bg-gray-800 dark:hover:bg-gray-200"
+            className="col-span-1 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-2 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center justify-center gap-1 hover:bg-gray-800 dark:hover:bg-gray-200"
           >
             <Plus className="w-4 h-4" /> Add Rule
           </button>
@@ -546,7 +672,13 @@ export default function CategoriesPage() {
                 <button
                   onClick={async () => {
                     if (resetConfirmText !== "RESET") return;
-                    await fetch("/api/reset", { method: "POST" });
+                    if (isCapacitor()) {
+                      const { initClientDb, resetAllData } = await import("@/lib/db-client");
+                      await initClientDb();
+                      await resetAllData();
+                    } else {
+                      await fetch("/api/reset", { method: "POST" });
+                    }
                     setShowResetConfirm(false);
                     setResetConfirmText("");
                     load();

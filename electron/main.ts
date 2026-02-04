@@ -46,7 +46,15 @@ function startNextServer(port: number): Promise<void> {
         FINTRACKER_DB_PATH: dbPath,
       },
       cwd: getResourcePath("standalone"),
-      stdio: "pipe",
+      stdio: ["pipe", "pipe", "pipe", "ipc"],
+    });
+
+    // Log server output for debugging
+    serverProcess.stdout?.on("data", (data) => {
+      console.log(`[Server]: ${data}`);
+    });
+    serverProcess.stderr?.on("data", (data) => {
+      console.error(`[Server Error]: ${data}`);
     });
 
     // Wait for server to be ready by polling

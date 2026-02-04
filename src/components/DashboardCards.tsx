@@ -20,17 +20,21 @@ export default function DashboardCards({ totalIncome, totalExpenses, totalInvest
     { label: "Closing Balance", value: closingBalance ?? 0, icon: ArrowUpRight, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-900/30", show: closingBalance != null },
   ].filter(c => c.show);
 
+  const gridCols = cards.length > 3
+    ? "grid-cols-2 sm:grid-cols-3 xl:grid-cols-6"
+    : "grid-cols-2 sm:grid-cols-3";
+
   return (
-    <div className={`grid grid-cols-1 md:grid-cols-3 ${cards.length > 3 ? "lg:grid-cols-6" : ""} gap-4`}>
+    <div className={`grid ${gridCols} gap-2 sm:gap-4`}>
       {cards.map((c) => (
-        <div key={c.label} className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{c.label}</p>
-              <p className={`text-2xl font-bold mt-1 ${c.color}`}>{formatCurrency(c.value)}</p>
+        <div key={c.label} className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-3 sm:p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{c.label}</p>
+              <p className={`text-sm sm:text-lg xl:text-xl font-bold mt-0.5 ${c.color}`}>{formatCurrency(c.value)}</p>
             </div>
-            <div className={`p-3 rounded-lg ${c.bg}`}>
-              <c.icon className={`w-6 h-6 ${c.color}`} />
+            <div className={`p-1.5 sm:p-2 rounded-lg ${c.bg} shrink-0`}>
+              <c.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${c.color}`} />
             </div>
           </div>
         </div>

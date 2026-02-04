@@ -120,5 +120,5 @@ export function useTimeFilter() {
   const effectiveTo = preset === "custom" ? to : (FY_OPTIONS.find(f => f.label === preset)?.to || "");
   const durationLabel = preset !== "all" ? computeDurationLabel(effectiveFrom, effectiveTo) : "";
 
-  return { preset, from, to, setPreset, setFrom, setTo, apiParams, durationLabel };
+  return { preset, from, to, setPreset, setFrom, setTo, apiParams, durationLabel, effectiveFrom, effectiveTo };
 }

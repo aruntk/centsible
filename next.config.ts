@@ -17,9 +17,25 @@ const nextConfig: NextConfig = {
     trailingSlash: true,
   }),
 
-  // Empty turbopack config to silence the warning about missing turbopack config
-  // when webpack config is present
-  turbopack: {},
+  // Mark native modules as external to prevent bundling issues
+  serverExternalPackages: ["better-sqlite3"],
+
+  // Configure turbopack to resolve better-sqlite3 correctly
+  turbopack: {
+    resolveAlias: {
+      // Ensure better-sqlite3 resolves to the actual package
+      "better-sqlite3": "better-sqlite3",
+    },
+  },
+
+  // Webpack config for non-turbopack builds
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Externalize better-sqlite3 to prevent bundling issues
+      config.externals = [...(config.externals || []), "better-sqlite3"];
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

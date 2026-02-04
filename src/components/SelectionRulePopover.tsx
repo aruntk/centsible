@@ -2,58 +2,94 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Plus } from "lucide-react";
+import { isCapacitor } from "@/lib/platform";
 
 type Category = { id: number; name: string; color: string };
 
 export default function SelectionRulePopover({ onRuleAdded }: { onRuleAdded?: () => void }) {
   const [selection, setSelection] = useState("");
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [pos, setPos] = useState<{ x: number; y: number; below: boolean } | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [catId, setCatId] = useState<number>(0);
   const [priority, setPriority] = useState(5);
   const [applyExisting, setApplyExisting] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const isMobile = useRef(false);
 
   useEffect(() => {
-    fetch("/api/categories")
-      .then((r) => r.json())
-      .then((d) => {
-        setCategories(d.categories);
-        if (d.categories.length) setCatId(d.categories[0].id);
-      });
+    isMobile.current = isCapacitor();
+
+    const loadCategories = async () => {
+      if (isCapacitor()) {
+        const { initClientDb, getCategories } = await import("@/lib/db-client");
+        await initClientDb();
+        const cats = await getCategories();
+        setCategories(cats);
+        if (cats.length) setCatId(cats[0].id);
+      } else {
+        fetch("/api/categories")
+          .then((r) => r.json())
+          .then((d) => {
+            setCategories(d.categories);
+            if (d.categories.length) setCatId(d.categories[0].id);
+          });
+      }
+    };
+    loadCategories();
   }, []);
 
   const expandedRef = useRef(false);
   expandedRef.current = expanded;
 
-  const handleMouseUp = useCallback((e: MouseEvent) => {
+  const handleSelection = useCallback((e: MouseEvent | TouchEvent) => {
     if (popoverRef.current?.contains(e.target as Node)) return;
     if (expandedRef.current) {
       return;
     }
 
-    const sel = window.getSelection();
-    const text = sel?.toString().trim() ?? "";
-    if (text.length < 2) {
-      setPos(null);
-      setSelection("");
-      setExpanded(false);
-      return;
-    }
+    // Small delay on touch to let selection stabilize and system menu appear first
+    const processSelection = () => {
+      const sel = window.getSelection();
+      const text = sel?.toString().trim() ?? "";
+      if (text.length < 2) {
+        setPos(null);
+        setSelection("");
+        setExpanded(false);
+        return;
+      }
 
-    const range = sel?.getRangeAt(0);
-    if (!range) return;
-    const rect = range.getBoundingClientRect();
-    setSelection(text);
-    setPos({ x: rect.left + rect.width / 2, y: rect.top - 8 });
-    setExpanded(false);
+      const range = sel?.getRangeAt(0);
+      if (!range) return;
+      const rect = range.getBoundingClientRect();
+      setSelection(text);
+
+      // On mobile, position below selection to avoid system menu conflict
+      const isTouch = e.type === "touchend" || isMobile.current;
+      if (isTouch) {
+        setPos({ x: rect.left + rect.width / 2, y: rect.bottom + 8, below: true });
+      } else {
+        setPos({ x: rect.left + rect.width / 2, y: rect.top - 8, below: false });
+      }
+      setExpanded(false);
+    };
+
+    if (e.type === "touchend") {
+      // Delay on touch to let system menu appear and user dismiss it
+      setTimeout(processSelection, 300);
+    } else {
+      processSelection();
+    }
   }, []);
 
   useEffect(() => {
-    document.addEventListener("mouseup", handleMouseUp);
-    return () => document.removeEventListener("mouseup", handleMouseUp);
-  }, [handleMouseUp]);
+    document.addEventListener("mouseup", handleSelection);
+    document.addEventListener("touchend", handleSelection);
+    return () => {
+      document.removeEventListener("mouseup", handleSelection);
+      document.removeEventListener("touchend", handleSelection);
+    };
+  }, [handleSelection]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -67,16 +103,33 @@ export default function SelectionRulePopover({ onRuleAdded }: { onRuleAdded?: ()
   }, []);
 
   const addRule = async () => {
-    await fetch("/api/categories/rules", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    if (isCapacitor()) {
+      const { initClientDb, createCategoryRule, recategorizeAllTransactions } = await import("@/lib/db-client");
+      await initClientDb();
+      await createCategoryRule({
         category_id: catId,
         keyword: selection,
         priority,
-        apply_existing: applyExisting,
-      }),
-    });
+        condition_field: null,
+        condition_op: null,
+        condition_value: null,
+        condition_value2: null,
+      });
+      if (applyExisting) {
+        await recategorizeAllTransactions();
+      }
+    } else {
+      await fetch("/api/categories/rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category_id: catId,
+          keyword: selection,
+          priority,
+          apply_existing: applyExisting,
+        }),
+      });
+    }
     setPos(null);
     setSelection("");
     setExpanded(false);
@@ -93,7 +146,7 @@ export default function SelectionRulePopover({ onRuleAdded }: { onRuleAdded?: ()
       style={{
         left: pos.x,
         top: pos.y,
-        transform: "translate(-50%, -100%)",
+        transform: pos.below ? "translate(-50%, 0)" : "translate(-50%, -100%)",
       }}
     >
       {!expanded ? (

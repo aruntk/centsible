@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Transaction } from "@/lib/db";
+import { logger } from "@/lib/server-logger";
 
 export const dynamic = "force-static";
 
@@ -11,6 +12,13 @@ export async function GET(req: NextRequest) {
   }
 
   const sp = req.nextUrl.searchParams;
+  logger.debug("transactions", "GET /api/transactions", {
+    category: sp.get("category"),
+    search: sp.get("search"),
+    from: sp.get("from"),
+    to: sp.get("to"),
+    page: sp.get("page"),
+  });
   const category = sp.get("category");
   const search = sp.get("search");
   const from = sp.get("from");
@@ -53,6 +61,7 @@ export async function GET(req: NextRequest) {
     `SELECT * FROM transactions ${where} ORDER BY date DESC, id DESC LIMIT ? OFFSET ?`
   ).all(...params, limit, offset) as Transaction[];
 
+  logger.info("transactions", `Fetched ${transactions.length} of ${total} transactions`);
   return NextResponse.json({ transactions, total, page, limit });
 }
 
@@ -64,7 +73,14 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { date, narration, withdrawal, deposit, category, merchant, ref_no, closing_balance } = body;
 
+  logger.info("transactions", "POST /api/transactions - Creating transaction", {
+    date,
+    narration: narration?.substring(0, 50),
+    category,
+  });
+
   if (!date || !narration) {
+    logger.warn("transactions", "Missing required fields", { date, narration });
     return NextResponse.json({ error: "Date and narration are required" }, { status: 400 });
   }
 
@@ -85,5 +101,6 @@ export async function POST(req: NextRequest) {
     merchant || "",
   );
 
+  logger.info("transactions", `Created transaction id=${result.lastInsertRowid}`);
   return NextResponse.json({ id: result.lastInsertRowid });
 }

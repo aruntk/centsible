@@ -12,6 +12,7 @@ import {
   Calculator,
   Users,
   RefreshCw,
+  ScrollText,
   MoreHorizontal,
   X,
 } from "lucide-react";
@@ -26,6 +27,7 @@ const links = [
   { href: "/friends", label: "Friends", icon: Users },
   { href: "/import", label: "Import", icon: Upload },
   { href: "/updates", label: "Updates", icon: RefreshCw },
+  { href: "/logs", label: "Logs", icon: ScrollText },
 ];
 
 // Primary tabs shown in bottom bar on mobile

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/server-logger";
 
 export const dynamic = "force-static";
 
@@ -32,6 +33,8 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const from = sp.get("from");
   const to = sp.get("to");
+
+  logger.info("analytics", `GET /api/analytics - from=${from}, to=${to}`);
 
   const { getDb } = await import("@/lib/db");
   const db = getDb();
@@ -116,20 +119,21 @@ export async function GET(req: NextRequest) {
   const investmentCategoryTotal = investmentByMonth.reduce((s, m) => s + m.total, 0);
   const avgMonthlyInvestment = investmentCategoryTotal / totalMonths;
 
-  // Balance computation — derive current balance from last transaction's closing_balance
-  const lastTx = db.prepare("SELECT closing_balance FROM transactions ORDER BY date DESC, id DESC LIMIT 1").get() as { closing_balance: number } | undefined;
-  const currentBalance = lastTx?.closing_balance ?? 0;
+  // Current balance from the very last transaction (regardless of filters)
+  const lastTxGlobal = db.prepare("SELECT closing_balance FROM transactions ORDER BY date DESC, id DESC LIMIT 1").get() as { closing_balance: number } | undefined;
+  const currentBalance = lastTxGlobal?.closing_balance ?? 0;
 
-  let openingBalance = 0;
-  let closingBalance = 0;
+  // Opening balance: closing_balance of the first transaction in the time window
+  const firstTxInWindow = db.prepare(
+    `SELECT closing_balance FROM transactions ${where} ORDER BY date ASC, id ASC LIMIT 1`
+  ).get(...params) as { closing_balance: number } | undefined;
+  const openingBalance = firstTxInWindow?.closing_balance ?? 0;
 
-  if (to) {
-    const netAfter = (db.prepare("SELECT COALESCE(SUM(deposit), 0) - COALESCE(SUM(withdrawal), 0) as v FROM transactions WHERE date > ?").get(to) as { v: number }).v;
-    closingBalance = currentBalance - netAfter;
-  } else {
-    closingBalance = currentBalance;
-  }
-  openingBalance = closingBalance - (totalIncome - totalWithdrawals);
+  // Closing balance: closing_balance of the last transaction in the time window
+  const lastTxInWindow = db.prepare(
+    `SELECT closing_balance FROM transactions ${where} ORDER BY date DESC, id DESC LIMIT 1`
+  ).get(...params) as { closing_balance: number } | undefined;
+  const closingBalance = lastTxInWindow?.closing_balance ?? 0;
 
   const goldByMonth = db.prepare(`
     SELECT strftime('%Y-%m', date) as month, SUM(withdrawal) as total

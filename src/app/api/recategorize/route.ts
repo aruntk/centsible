@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/server-logger";
 
 export const dynamic = "force-static";
 
@@ -9,6 +10,8 @@ export async function POST() {
     return NextResponse.json({ error: "Not available in mobile build" }, { status: 501 });
   }
 
+  logger.info("recategorize", "Starting recategorization of all transactions");
+
   const { getDb } = await import("@/lib/db");
   const { categorizeAll } = await import("@/lib/categorizer");
   const db = getDb();
@@ -18,5 +21,6 @@ export async function POST() {
 
   categorizeAll(transactions);
 
+  logger.info("recategorize", `Recategorized ${transactions.length} transactions`);
   return NextResponse.json({ recategorized: transactions.length });
 }
