@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
-import { readFileSync } from "fs";
-import { join } from "path";
+import pkg from "../../../../package.json";
 
 export async function GET() {
   try {
-    const pkgPath = join(process.cwd(), "package.json");
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
     const currentVersion = pkg.version;
 
     const res = await fetch(
