@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, type Transaction } from "@/lib/db";
+import type { Transaction } from "@/lib/db";
+
+export const dynamic = "force-static";
+
+const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 
 export async function GET(req: NextRequest) {
+  if (isMobileBuild) {
+    return NextResponse.json({ transactions: [], total: 0, page: 1, limit: 50 });
+  }
+
   const sp = req.nextUrl.searchParams;
   const category = sp.get("category");
   const search = sp.get("search");
@@ -11,6 +19,7 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(sp.get("limit") || "50");
   const offset = (page - 1) * limit;
 
+  const { getDb } = await import("@/lib/db");
   const db = getDb();
   const conditions: string[] = [];
   const params: (string | number)[] = [];
@@ -48,6 +57,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (isMobileBuild) {
+    return NextResponse.json({ error: "Not available in mobile build" }, { status: 501 });
+  }
+
   const body = await req.json();
   const { date, narration, withdrawal, deposit, category, merchant, ref_no, closing_balance } = body;
 
@@ -55,6 +68,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Date and narration are required" }, { status: 400 });
   }
 
+  const { getDb } = await import("@/lib/db");
   const db = getDb();
   const result = db.prepare(
     `INSERT INTO transactions (date, narration, ref_no, value_date, withdrawal, deposit, closing_balance, category, merchant)

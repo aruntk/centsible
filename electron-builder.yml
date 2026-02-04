@@ -5,7 +5,17 @@ directories:
 files:
   - electron/**/*.js
   - package.json
-  - "!node_modules"
+  - node_modules/electron-updater/**/*
+  - node_modules/builder-util-runtime/**/*
+  - node_modules/lazy-val/**/*
+  - node_modules/semver/**/*
+  - node_modules/typed-emitter/**/*
+  - node_modules/rxjs/**/*
+  - node_modules/tslib/**/*
+  - node_modules/fs-extra/**/*
+  - node_modules/graceful-fs/**/*
+  - node_modules/jsonfile/**/*
+  - node_modules/universalify/**/*
   - "!src"
   - "!.next"
   - "!public"

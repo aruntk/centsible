@@ -1,9 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+
+const isMobileBuild = process.env.BUILD_TARGET === "mobile";
+
+// For mobile builds, we need to export a stub route that won't cause build errors
+// For desktop builds, export the actual PATCH handler
+export const dynamic = "force-static";
+export const dynamicParams = false;
+
+export async function generateStaticParams() {
+  return [];
+}
+
+// Use a GET handler for static export compatibility (returns 404)
+export async function GET() {
+  return NextResponse.json({ error: "Not found" }, { status: 404 });
+}
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (isMobileBuild) {
+    return NextResponse.json({ error: "Not available in mobile build" }, { status: 501 });
+  }
+
   const { id } = await params;
   const body = await req.json();
+  const { getDb } = await import("@/lib/db");
   const db = getDb();
 
   const fields: string[] = [];

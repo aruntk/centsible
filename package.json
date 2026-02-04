@@ -1,6 +1,6 @@
 {
   "name": "centsible",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -14,9 +14,23 @@
     "electron:build:win": "npm run build && npm run electron:compile && electron-builder --win",
     "electron:build:all": "npm run build && npm run electron:compile && electron-builder --mac --win",
     "release": "bash scripts/release.sh",
-    "postinstall": "electron-rebuild || true"
+    "postinstall": "electron-rebuild || true",
+    "build:mobile": "mv src/app/api/transactions/\\[id\\] src/app/api/transactions/_id_disabled 2>/dev/null || true && BUILD_TARGET=mobile next build; mv src/app/api/transactions/_id_disabled src/app/api/transactions/\\[id\\] 2>/dev/null || true",
+    "cap:sync": "npx cap sync",
+    "cap:android": "npx cap open android",
+    "cap:ios": "npx cap open ios",
+    "cap:run:android": "npx cap run android",
+    "cap:run:ios": "npx cap run ios",
+    "mobile:android": "npm run build:mobile && npm run cap:sync android && npm run cap:run:android",
+    "mobile:ios": "npm run build:mobile && npm run cap:sync ios && npm run cap:run:ios"
   },
   "dependencies": {
+    "@capacitor-community/sqlite": "^8.0.0",
+    "@capacitor/android": "^8.0.2",
+    "@capacitor/cli": "^6.2.1",
+    "@capacitor/core": "^8.0.2",
+    "@capacitor/filesystem": "^8.1.0",
+    "@capacitor/ios": "^8.0.2",
     "ag-grid-community": "^35.0.1",
     "ag-grid-react": "^35.0.1",
     "better-sqlite3": "^11.10.0",

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Centsible</string>
+    <string name="title_activity_main">Centsible</string>
+    <string name="package_name">com.centsible.app</string>
+    <string name="custom_url_scheme">com.centsible.app</string>
+</resources>

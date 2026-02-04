@@ -1,21 +1,47 @@
-import Database from "better-sqlite3";
-import path from "path";
+import { NEW_CATEGORIES } from "./db-interface";
 
-const DB_PATH = process.env.FINTRACKER_DB_PATH || path.join(process.cwd(), "fin-tracker.db");
+// Re-export types from interface for backward compatibility
+export type { Transaction, Category, CategoryRule } from "./db-interface";
 
-let _db: Database.Database | null = null;
+// Dynamic import for better-sqlite3 - only works in Node.js environment
+// This prevents build errors during static export (mobile builds)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DatabaseType = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let Database: any = null;
+let _db: DatabaseType | null = null;
 
-export function getDb(): Database.Database {
-  if (!_db) {
-    _db = new Database(DB_PATH);
-    _db.pragma("journal_mode = WAL");
-    _db.pragma("foreign_keys = ON");
-    initSchema(_db);
+// Check if we're in a Node.js server environment (not static export)
+const isNodeServer = typeof window === "undefined" && process.env.BUILD_TARGET !== "mobile";
+
+/**
+ * Get the desktop SQLite database instance.
+ * This uses better-sqlite3 which only works in Node.js (Electron main process or Next.js server).
+ * For mobile (Capacitor), use the db-mobile.ts implementation instead.
+ */
+export function getDb(): DatabaseType {
+  if (!isNodeServer) {
+    throw new Error("getDb() can only be called in Node.js server environment. For mobile, use db-mobile.ts");
   }
-  return _db;
+
+  if (!_db) {
+    // Dynamic require to avoid bundling issues during static export
+    if (!Database) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      Database = require("better-sqlite3");
+    }
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require("path");
+    const DB_PATH = process.env.FINTRACKER_DB_PATH || path.join(process.cwd(), "fin-tracker.db");
+    _db = new Database(DB_PATH);
+    _db!.pragma("journal_mode = WAL");
+    _db!.pragma("foreign_keys = ON");
+    initSchema(_db!);
+  }
+  return _db!;
 }
 
-function initSchema(db: Database.Database) {
+function initSchema(db: DatabaseType) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,20 +96,7 @@ function initSchema(db: Database.Database) {
   // Seed new categories if missing
   const existingCats = db.prepare("SELECT name FROM categories").all() as { name: string }[];
   const existingNames = new Set(existingCats.map((c) => c.name));
-  const newCats: [string, string, string][] = [
-    ["Vices", "#b91c1c", "cigarette"],
-    ["Subscriptions", "#7c3aed", "repeat"],
-    ["Family & Friends", "#f59e0b", "users"],
-    ["Loans", "#64748b", "hand-coins"],
-    ["Grocery", "#16a34a", "shopping-cart"],
-    ["Real Estate", "#854d0e", "building"],
-    ["CCBILL", "#0369a1", "credit-card"],
-    ["Gold", "#ca8a04", "coins"],
-    ["Car", "#475569", "car"],
-    ["Fraud", "#dc2626", "alert-triangle"],
-    ["Travel", "#0891b2", "plane"],
-  ];
-  for (const [name, color, icon] of newCats) {
+  for (const [name, color, icon] of NEW_CATEGORIES) {
     if (!existingNames.has(name)) {
       db.prepare("INSERT INTO categories (name, color, icon) VALUES (?, ?, ?)").run(name, color, icon);
     }
@@ -96,7 +109,7 @@ function initSchema(db: Database.Database) {
   }
 }
 
-export function seedDefaults(db: Database.Database) {
+export function seedDefaults(db: DatabaseType) {
   const categories: [string, string, string][] = [
     ["Food & Dining", "#ef4444", "utensils"],
     ["Shopping", "#f97316", "shopping-bag"],
@@ -203,34 +216,3 @@ export function seedDefaults(db: Database.Database) {
 
   insertAll();
 }
-
-export type Transaction = {
-  id: number;
-  date: string;
-  narration: string;
-  ref_no: string;
-  value_date: string;
-  withdrawal: number;
-  deposit: number;
-  closing_balance: number;
-  category: string;
-  merchant: string;
-};
-
-export type Category = {
-  id: number;
-  name: string;
-  color: string;
-  icon: string;
-};
-
-export type CategoryRule = {
-  id: number;
-  category_id: number;
-  keyword: string | null;
-  priority: number;
-  condition_field: string | null;
-  condition_op: string | null;
-  condition_value: number | null;
-  condition_value2: number | null;
-};

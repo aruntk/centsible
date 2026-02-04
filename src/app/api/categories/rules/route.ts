@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+
+export const dynamic = "force-static";
+
+const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 
 export async function POST(req: NextRequest) {
+  if (isMobileBuild) {
+    return NextResponse.json({ error: "Not available in mobile build" }, { status: 501 });
+  }
+
   const body = await req.json();
   const {
     category_id, keyword, priority = 5, apply_existing = false,
@@ -15,6 +22,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "keyword or condition required" }, { status: 400 });
   }
 
+  const { getDb } = await import("@/lib/db");
   const db = getDb();
   const result = db.prepare(
     "INSERT INTO category_rules (category_id, keyword, priority, condition_field, condition_op, condition_value, condition_value2) VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -57,6 +65,10 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  if (isMobileBuild) {
+    return NextResponse.json({ error: "Not available in mobile build" }, { status: 501 });
+  }
+
   const body = await req.json();
   const { id, category_id, keyword, priority, condition_field, condition_op, condition_value, condition_value2 } = body;
 
@@ -64,6 +76,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "id required" }, { status: 400 });
   }
 
+  const { getDb } = await import("@/lib/db");
   const db = getDb();
   db.prepare(`
     UPDATE category_rules
@@ -75,7 +88,12 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (isMobileBuild) {
+    return NextResponse.json({ error: "Not available in mobile build" }, { status: 501 });
+  }
+
   const { id } = await req.json();
+  const { getDb } = await import("@/lib/db");
   const db = getDb();
   db.prepare("DELETE FROM category_rules WHERE id = ?").run(id);
   return NextResponse.json({ success: true });

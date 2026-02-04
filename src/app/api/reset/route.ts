@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
-import { getDb, seedDefaults } from "@/lib/db";
+
+export const dynamic = "force-static";
+
+const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 
 export async function POST() {
+  if (isMobileBuild) {
+    return NextResponse.json({ error: "Not available in mobile build" }, { status: 501 });
+  }
+
+  const { getDb, seedDefaults } = await import("@/lib/db");
   const db = getDb();
   db.exec("DELETE FROM category_rules");
   db.exec("DELETE FROM transactions");

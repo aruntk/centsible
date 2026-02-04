@@ -1,14 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+
+export const dynamic = "force-static";
+
+const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 
 const INVESTMENT_CATEGORIES = ['Investments', 'Gold', 'Real Estate'];
 const LOAN_CATEGORIES = ['Loans'];
 
 export async function GET(req: NextRequest) {
+  if (isMobileBuild) {
+    return NextResponse.json({
+      totalIncome: 0,
+      totalExpenses: 0,
+      totalInvestments: 0,
+      totalLoans: 0,
+      balance: 0,
+      openingBalance: 0,
+      closingBalance: 0,
+      currentBalance: 0,
+      byCategory: [],
+      byMonth: [],
+      topMerchants: [],
+      dailySpending: [],
+      investmentByMonth: [],
+      avgMonthlyInvestment: 0,
+      avgMonthlyGold: 0,
+      avgMonthlyRealEstate: 0,
+    });
+  }
+
   const sp = req.nextUrl.searchParams;
   const from = sp.get("from");
   const to = sp.get("to");
 
+  const { getDb } = await import("@/lib/db");
   const db = getDb();
   const conditions: string[] = [];
   const params: string[] = [];

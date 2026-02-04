@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+
+export const dynamic = "force-static";
+
+const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 
 export async function GET() {
+  if (isMobileBuild) {
+    return NextResponse.json({ people: [], totalSent: 0, totalReceived: 0 });
+  }
+
+  const { getDb } = await import("@/lib/db");
   const db = getDb();
 
   // Aggregate Family & Friends transactions by merchant/person

@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import pkg from "../../../../package.json";
 
+export const dynamic = "force-static";
+
+const isMobileBuild = process.env.BUILD_TARGET === "mobile";
+
 export async function GET() {
+  if (isMobileBuild) {
+    return NextResponse.json({ currentVersion: pkg.version, releases: [] });
+  }
+
   try {
     const currentVersion = pkg.version;
 

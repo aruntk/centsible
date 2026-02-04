@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+
+export const dynamic = "force-static";
+
+const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 
 export async function GET() {
+  if (isMobileBuild) {
+    return NextResponse.json({ keywords: [] });
+  }
+
+  const { getDb } = await import("@/lib/db");
   const db = getDb();
 
   // Get merchants with counts (non-empty merchant field)

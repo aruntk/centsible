@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+
+export const dynamic = "force-static";
+
+const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 
 type ImportedCategory = {
   name: string;
@@ -18,6 +21,10 @@ type ImportedRule = {
 };
 
 export async function POST(req: NextRequest) {
+  if (isMobileBuild) {
+    return NextResponse.json({ error: "Not available in mobile build" }, { status: 501 });
+  }
+
   const body = await req.json();
   const importedRules = body.rules as ImportedRule[];
   const importedCategories = (body.categories ?? []) as ImportedCategory[];
@@ -26,6 +33,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid format: expected { rules: [...] }" }, { status: 400 });
   }
 
+  const { getDb } = await import("@/lib/db");
   const db = getDb();
 
   // Create any missing categories from the export

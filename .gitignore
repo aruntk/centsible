@@ -67,3 +67,49 @@ next-env.d.ts
 /build/icon.icns
 electron/**/*.js
 electron/**/*.js.map
+
+# capacitor - native build artifacts
+android/local.properties
+android/app/build/
+android/.gradle/
+android/capacitor.settings.gradle
+ios/App/Pods/
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+
+# large binary files - mobile
+*.apk
+*.aab
+*.ipa
+*.dSYM.zip
+*.app
+
+# large binary files - desktop
+*.dmg
+*.pkg
+*.exe
+*.msi
+*.AppImage
+*.snap
+*.deb
+*.rpm
+*.blockmap
+
+# archives
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+# native modules / binaries
+*.node
+*.dylib
+*.so
+*.dll
+
+# electron builder output
+/release/

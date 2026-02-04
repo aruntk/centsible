@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
-import { categorizeTransaction } from "@/lib/categorizer";
-import { parseCSVLine } from "@/lib/parsers/utils";
+
+export const dynamic = "force-static";
+
+const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 
 export async function POST(req: NextRequest) {
+  if (isMobileBuild) {
+    return NextResponse.json({ error: "Not available in mobile build" }, { status: 501 });
+  }
+
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
@@ -43,6 +48,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const { getDb } = await import("@/lib/db");
+    const { categorizeTransaction } = await import("@/lib/categorizer");
+    const { parseCSVLine } = await import("@/lib/parsers/utils");
     const db = getDb();
     const insert = db.prepare(
       `INSERT INTO transactions (date, narration, ref_no, value_date, withdrawal, deposit, closing_balance, category, merchant)

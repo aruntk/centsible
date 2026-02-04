@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
-import { parseStatement } from "@/lib/parsers";
-import { categorizeTransaction } from "@/lib/categorizer";
+
+export const dynamic = "force-static";
+
+const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 
 export async function POST(req: NextRequest) {
+  if (isMobileBuild) {
+    return NextResponse.json({ error: "Not available in mobile build" }, { status: 501 });
+  }
+
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
@@ -12,12 +17,15 @@ export async function POST(req: NextRequest) {
     }
 
     const text = await file.text();
+    const { parseStatement } = await import("@/lib/parsers");
     const { bank, transactions: parsed } = parseStatement(text, file.name);
 
     if (parsed.length === 0) {
       return NextResponse.json({ error: "No transactions found in file" }, { status: 400 });
     }
 
+    const { getDb } = await import("@/lib/db");
+    const { categorizeTransaction } = await import("@/lib/categorizer");
     const db = getDb();
     const insert = db.prepare(`
       INSERT INTO transactions (date, narration, ref_no, value_date, withdrawal, deposit, closing_balance, category, merchant)
