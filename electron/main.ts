@@ -2,7 +2,14 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
 import { createServer } from "http";
 import { fork, ChildProcess } from "child_process";
-import { autoUpdater } from "electron-updater";
+
+// Try to load electron-updater, but make it optional
+let autoUpdater: typeof import("electron-updater").autoUpdater | null = null;
+try {
+  autoUpdater = require("electron-updater").autoUpdater;
+} catch {
+  console.log("electron-updater not available, auto-updates disabled");
+}
 
 let mainWindow: BrowserWindow | null = null;
 let serverProcess: ChildProcess | null = null;
@@ -143,6 +150,11 @@ app.whenReady().then(async () => {
 
 // Auto-updater setup
 function setupAutoUpdater() {
+  if (!autoUpdater) {
+    console.log("Auto-updater not available");
+    return;
+  }
+
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
@@ -169,6 +181,9 @@ function setupAutoUpdater() {
 
 // IPC handlers for update actions
 ipcMain.handle("check-for-updates", async () => {
+  if (!autoUpdater) {
+    return { success: false, error: "Auto-updater not available" };
+  }
   try {
     const result = await autoUpdater.checkForUpdates();
     return { success: true, updateInfo: result?.updateInfo };
@@ -178,6 +193,9 @@ ipcMain.handle("check-for-updates", async () => {
 });
 
 ipcMain.handle("download-update", async () => {
+  if (!autoUpdater) {
+    return { success: false, error: "Auto-updater not available" };
+  }
   try {
     await autoUpdater.downloadUpdate();
     return { success: true };
@@ -187,6 +205,7 @@ ipcMain.handle("download-update", async () => {
 });
 
 ipcMain.handle("install-update", () => {
+  if (!autoUpdater) return;
   autoUpdater.quitAndInstall(false, true);
 });
 

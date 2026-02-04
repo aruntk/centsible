@@ -2,23 +2,22 @@ appId: com.centsible.app
 productName: Centsible
 directories:
   output: dist
+# Skip npm rebuild since we do it manually
+npmRebuild: false
+# Completely skip node_modules dependency resolution to save memory
+buildDependenciesFromSource: false
+nodeGypRebuild: false
+# Include only electron main files, no node_modules in asar
 files:
   - electron/**/*.js
   - package.json
-  - node_modules/electron-updater/**/*
-  - node_modules/builder-util-runtime/**/*
-  - node_modules/lazy-val/**/*
-  - node_modules/semver/**/*
-  - node_modules/typed-emitter/**/*
-  - node_modules/rxjs/**/*
-  - node_modules/tslib/**/*
-  - node_modules/fs-extra/**/*
-  - node_modules/graceful-fs/**/*
-  - node_modules/jsonfile/**/*
-  - node_modules/universalify/**/*
+  - "!node_modules"
   - "!src"
   - "!.next"
   - "!public"
+  - "!android"
+  - "!ios"
+  - "!.tmp-node-modules"
 publish:
   provider: github
   owner: aruntk
@@ -36,6 +35,7 @@ nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
 extraResources:
+  # Next.js standalone server
   - from: .next/standalone/server.js
     to: standalone/server.js
   - from: .next/standalone/package.json
