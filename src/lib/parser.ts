@@ -107,10 +107,10 @@ export function parseHDFCStatement(text: string): ParsedTransaction[] {
       const rest = line.substring(78);
 
       // Parse amounts from the rest - they are right-aligned in fixed columns
-      // Withdrawal: ~18 chars, Deposit: ~18 chars, Balance: ~18 chars
-      const withdrawalStr = rest.substring(0, 18);
-      const depositStr = rest.substring(18, 36);
-      const balanceStr = rest.substring(36);
+      // Withdrawal: 20 chars, Deposit: 20 chars, Balance: remaining
+      const withdrawalStr = rest.substring(0, 20);
+      const depositStr = rest.substring(20, 40);
+      const balanceStr = rest.substring(40);
 
       current = {
         date: parseDate(dateStr),
