@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 
+const INVESTMENT_CATEGORIES = ['Investments', 'Gold', 'Real Estate'];
+const LOAN_CATEGORIES = ['Loans'];
+
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const from = sp.get("from");
@@ -17,7 +20,29 @@ export async function GET(req: NextRequest) {
   const andWhere = conditions.length ? "AND " + conditions.join(" AND ") : "";
 
   const totalIncome = (db.prepare(`SELECT COALESCE(SUM(deposit), 0) as v FROM transactions ${where}`).get(...params) as { v: number }).v;
-  const totalExpenses = (db.prepare(`SELECT COALESCE(SUM(withdrawal), 0) as v FROM transactions ${where}`).get(...params) as { v: number }).v;
+  const totalWithdrawals = (db.prepare(`SELECT COALESCE(SUM(withdrawal), 0) as v FROM transactions ${where}`).get(...params) as { v: number }).v;
+
+  // Compute totalExpenses excluding investments and loans
+  const expenseExclusions = [...INVESTMENT_CATEGORIES, ...LOAN_CATEGORIES];
+  const totalExpenses = (db.prepare(`
+    SELECT COALESCE(SUM(withdrawal), 0) as v
+    FROM transactions
+    WHERE category NOT IN (${expenseExclusions.map(() => '?').join(',')}) ${andWhere}
+  `).get(...expenseExclusions, ...params) as { v: number }).v;
+
+  // Compute total investments
+  const totalInvestments = (db.prepare(`
+    SELECT COALESCE(SUM(withdrawal), 0) as v
+    FROM transactions
+    WHERE category IN (${INVESTMENT_CATEGORIES.map(() => '?').join(',')}) ${andWhere}
+  `).get(...INVESTMENT_CATEGORIES, ...params) as { v: number }).v;
+
+  // Compute total loans
+  const totalLoans = (db.prepare(`
+    SELECT COALESCE(SUM(withdrawal), 0) as v
+    FROM transactions
+    WHERE category IN (${LOAN_CATEGORIES.map(() => '?').join(',')}) ${andWhere}
+  `).get(...LOAN_CATEGORIES, ...params) as { v: number }).v;
 
   const byCategory = db.prepare(`
     SELECT category, SUM(withdrawal) as total, COUNT(*) as count
@@ -63,8 +88,8 @@ export async function GET(req: NextRequest) {
     totalMonths = Math.max(1, (d2.getFullYear() - d1.getFullYear()) * 12 + d2.getMonth() - d1.getMonth() + 1);
   }
 
-  const totalInvestments = investmentByMonth.reduce((s, m) => s + m.total, 0);
-  const avgMonthlyInvestment = totalInvestments / totalMonths;
+  const investmentCategoryTotal = investmentByMonth.reduce((s, m) => s + m.total, 0);
+  const avgMonthlyInvestment = investmentCategoryTotal / totalMonths;
 
   // Balance computation — derive current balance from last transaction's closing_balance
   const lastTx = db.prepare("SELECT closing_balance FROM transactions ORDER BY date DESC, id DESC LIMIT 1").get() as { closing_balance: number } | undefined;
@@ -79,7 +104,7 @@ export async function GET(req: NextRequest) {
   } else {
     closingBalance = currentBalance;
   }
-  openingBalance = closingBalance - (totalIncome - totalExpenses);
+  openingBalance = closingBalance - (totalIncome - totalWithdrawals);
 
   const goldByMonth = db.prepare(`
     SELECT strftime('%Y-%m', date) as month, SUM(withdrawal) as total
@@ -102,7 +127,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     totalIncome,
     totalExpenses,
-    balance: totalIncome - totalExpenses,
+    totalInvestments,
+    totalLoans,
+    balance: totalIncome - totalWithdrawals,
     openingBalance,
     closingBalance,
     currentBalance,

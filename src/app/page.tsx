@@ -13,6 +13,8 @@ import { formatCurrency } from "@/lib/utils";
 type Analytics = {
   totalIncome: number;
   totalExpenses: number;
+  totalInvestments: number;
+  totalLoans: number;
   balance: number;
   openingBalance: number;
   closingBalance: number;
@@ -62,7 +64,8 @@ function DashboardInner() {
       <DashboardCards
         totalIncome={data.totalIncome}
         totalExpenses={data.totalExpenses}
-        balance={data.balance}
+        totalInvestments={data.totalInvestments}
+        totalLoans={data.totalLoans}
         openingBalance={data.openingBalance}
         closingBalance={data.closingBalance}
       />
