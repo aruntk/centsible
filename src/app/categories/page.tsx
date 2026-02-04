@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import CategoryBadge from "@/components/CategoryBadge";
+import { writeFileToDocuments } from "@/lib/file-picker";
 import { Trash2, Plus, RefreshCw, Pencil, Check, X, Download, Upload, AlertTriangle } from "lucide-react";
 
 type Category = { id: number; name: string; color: string; icon: string };
@@ -107,18 +108,16 @@ export default function CategoriesPage() {
     setRecatLoading(false);
   };
 
-  const exportRules = () => {
-    fetch("/api/categories/rules/export")
-      .then((r) => r.json())
-      .then((data) => {
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "category-rules.json";
-        a.click();
-        URL.revokeObjectURL(url);
-      });
+  const exportRules = async () => {
+    const res = await fetch("/api/categories/rules/export");
+    const data = await res.json();
+    const content = JSON.stringify(data, null, 2);
+    const success = await writeFileToDocuments("category-rules.json", content);
+    if (success) {
+      setRecatResult("Rules exported to category-rules.json");
+    } else {
+      setRecatResult("Export failed");
+    }
   };
 
   const importRules = () => {

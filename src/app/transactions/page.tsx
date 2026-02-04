@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState, useCallback, useMemo, useRef, useSyncExt
 import { AgGridReact } from "ag-grid-react";
 import { AllCommunityModule, ModuleRegistry, type ColDef, type CellValueChangedEvent, themeQuartz, colorSchemeDark, colorSchemeLight } from "ag-grid-community";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { writeFileToDocuments } from "@/lib/file-picker";
 import SelectionRulePopover from "@/components/SelectionRulePopover";
 import TimeFilter from "@/components/TimeFilter";
 import { useTimeFilter } from "@/hooks/useTimeFilter";
@@ -94,29 +95,32 @@ function TransactionsInner() {
     load();
   };
 
-  const exportTransactions = () => {
+  const [exportStatus, setExportStatus] = useState("");
+
+  const exportTransactions = async () => {
     const header = "Date,Narration,Merchant,Withdrawal,Deposit,Closing Balance,Category,Ref No\n";
     const rows = transactions.map((t) =>
       [t.date, `"${(t.narration || "").replace(/"/g, '""')}"`, `"${(t.merchant || "").replace(/"/g, '""')}"`, t.withdrawal || 0, t.deposit || 0, t.closing_balance || 0, t.category || "", t.ref_no || ""].join(",")
     ).join("\n");
-    const blob = new Blob([header + rows], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `transactions-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const fileName = `transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    const success = await writeFileToDocuments(fileName, header + rows);
+    if (success) {
+      setExportStatus(`Exported to ${fileName}`);
+      setTimeout(() => setExportStatus(""), 3000);
+    } else {
+      setExportStatus("Export failed");
+    }
   };
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
     const csv = "Date,Narration,Merchant,Withdrawal,Deposit,Closing Balance,Category,Ref No\n2025-01-15,Swiggy Order,Swiggy,450,0,50000,Food & Dining,\n2025-01-16,Salary Credit,,0,100000,150000,Salary/Income,REF123\n";
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "transactions-template.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    const success = await writeFileToDocuments("transactions-template.csv", csv);
+    if (success) {
+      setExportStatus("Template saved");
+      setTimeout(() => setExportStatus(""), 3000);
+    } else {
+      setExportStatus("Download failed");
+    }
   };
 
   const importCSV = () => {
@@ -225,6 +229,7 @@ function TransactionsInner() {
         <div className="flex flex-wrap items-center gap-3">
           <TimeFilter />
           {importResult && <span className="text-sm text-emerald-600 dark:text-emerald-400">{importResult}</span>}
+          {exportStatus && <span className="text-sm text-blue-600 dark:text-blue-400">{exportStatus}</span>}
           <span className="text-sm text-gray-500 dark:text-gray-400">{transactions.length} transactions</span>
           <button
             onClick={exportTransactions}

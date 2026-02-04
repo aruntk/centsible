@@ -115,10 +115,19 @@ export default function UpdatesPage() {
   const handleDownloadUpdate = async () => {
     if (!window.electronAPI) return;
 
-    setUpdateStatus("downloading");
+    setUpdateStatus("checking");
     setDownloadProgress(0);
     setUpdateError("");
 
+    // Must check for updates first before downloading
+    const checkResult = await window.electronAPI.checkForUpdates();
+    if (!checkResult.success) {
+      setUpdateStatus("error");
+      setUpdateError(checkResult.error || "Failed to check for updates");
+      return;
+    }
+
+    setUpdateStatus("downloading");
     const result = await window.electronAPI.downloadUpdate();
     if (!result.success) {
       setUpdateStatus("error");
@@ -196,6 +205,13 @@ export default function UpdatesPage() {
                 <Download className="w-4 h-4" />
                 Update to v{latest.version}
               </button>
+            )}
+
+            {updateStatus === "checking" && (
+              <div className="flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400 py-2">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Checking for updates...</span>
+              </div>
             )}
 
             {updateStatus === "downloading" && (
