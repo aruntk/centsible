@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw, Download, ExternalLink, CheckCircle, ArrowUp } from "lucide-react";
+import { RefreshCw, Download, ExternalLink, CheckCircle, ArrowUp, Loader2 } from "lucide-react";
 
 type Asset = {
   name: string;
@@ -20,6 +20,8 @@ type Release = {
   draft: boolean;
   assets: Asset[];
 };
+
+type UpdateStatus = "idle" | "checking" | "downloading" | "ready" | "error";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -52,6 +54,12 @@ export default function UpdatesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Auto-update state
+  const [isElectron, setIsElectron] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [updateError, setUpdateError] = useState("");
+
   const load = () => {
     setLoading(true);
     setError("");
@@ -69,11 +77,78 @@ export default function UpdatesPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+
+    // Check if running in Electron
+    if (typeof window !== "undefined" && window.electronAPI) {
+      setIsElectron(true);
+
+      // Set up update event listeners
+      window.electronAPI.onUpdateAvailable(() => {
+        setUpdateStatus("idle");
+      });
+
+      window.electronAPI.onUpdateNotAvailable(() => {
+        setUpdateStatus("idle");
+      });
+
+      window.electronAPI.onDownloadProgress((progress) => {
+        setDownloadProgress(Math.round(progress.percent));
+      });
+
+      window.electronAPI.onUpdateDownloaded(() => {
+        setUpdateStatus("ready");
+      });
+
+      window.electronAPI.onUpdateError((err) => {
+        setUpdateStatus("error");
+        setUpdateError(err);
+      });
+
+      return () => {
+        window.electronAPI?.removeUpdateListeners();
+      };
+    }
+  }, []);
+
+  const handleDownloadUpdate = async () => {
+    if (!window.electronAPI) return;
+
+    setUpdateStatus("downloading");
+    setDownloadProgress(0);
+    setUpdateError("");
+
+    const result = await window.electronAPI.downloadUpdate();
+    if (!result.success) {
+      setUpdateStatus("error");
+      setUpdateError(result.error || "Download failed");
+    }
+  };
+
+  const handleInstallUpdate = () => {
+    if (!window.electronAPI) return;
+    window.electronAPI.installUpdate();
+  };
 
   const stableReleases = releases.filter((r) => !r.prerelease);
   const latest = stableReleases[0];
   const hasUpdate = latest && compareVersions(latest.version, currentVersion) > 0;
+  const platform = typeof window !== "undefined" ? window.electronAPI?.platform : undefined;
+
+  // Get the appropriate asset for the current platform
+  const getUpdateAsset = (release: Release): Asset | undefined => {
+    if (!platform) return undefined;
+
+    if (platform === "darwin") {
+      // Prefer zip for auto-update on macOS, fall back to dmg
+      return release.assets.find(a => a.name.endsWith(".zip"))
+        || release.assets.find(a => a.name.endsWith(".dmg"));
+    } else if (platform === "win32") {
+      return release.assets.find(a => a.name.endsWith(".exe"));
+    }
+    return undefined;
+  };
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -109,6 +184,63 @@ export default function UpdatesPage() {
             ) : null
           )}
         </div>
+
+        {/* Auto-update controls */}
+        {isElectron && hasUpdate && latest && (
+          <div className="mt-4 pt-4 border-t dark:border-gray-800">
+            {updateStatus === "idle" && (
+              <button
+                onClick={handleDownloadUpdate}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Update to v{latest.version}
+              </button>
+            )}
+
+            {updateStatus === "downloading" && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Downloading update...
+                  </span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100">{downloadProgress}%</span>
+                </div>
+                <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 transition-all duration-300"
+                    style={{ width: `${downloadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {updateStatus === "ready" && (
+              <button
+                onClick={handleInstallUpdate}
+                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg font-medium transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Restart to Install Update
+              </button>
+            )}
+
+            {updateStatus === "error" && (
+              <div className="space-y-2">
+                <div className="text-sm text-red-600 dark:text-red-400">
+                  Update failed: {updateError}
+                </div>
+                <button
+                  onClick={handleDownloadUpdate}
+                  className="w-full flex items-center justify-center gap-2 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-4 py-2 rounded-lg font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {error && (
@@ -128,6 +260,7 @@ export default function UpdatesPage() {
       {!loading && releases.map((release) => {
         const isCurrent = release.version === currentVersion;
         const isNewer = compareVersions(release.version, currentVersion) > 0;
+        const updateAsset = getUpdateAsset(release);
 
         return (
           <div
@@ -188,11 +321,20 @@ export default function UpdatesPage() {
                     <a
                       key={asset.name}
                       href={asset.downloadUrl}
-                      className="inline-flex items-center gap-1.5 border dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                      className={`inline-flex items-center gap-1.5 border rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                        updateAsset?.name === asset.name
+                          ? "border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                          : "dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                      }`}
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span className="truncate max-w-[200px]">{asset.name}</span>
                       <span className="text-xs text-gray-400">({formatBytes(asset.size)})</span>
+                      {updateAsset?.name === asset.name && (
+                        <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded">
+                          {platform === "darwin" ? "macOS" : "Windows"}
+                        </span>
+                      )}
                     </a>
                   ))}
                 </div>

@@ -1,7 +1,8 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
 import { createServer } from "http";
 import { fork, ChildProcess } from "child_process";
+import { autoUpdater } from "electron-updater";
 
 let mainWindow: BrowserWindow | null = null;
 let serverProcess: ChildProcess | null = null;
@@ -125,8 +126,62 @@ app.whenReady().then(async () => {
     appPort = await getFreePort();
     await startNextServer(appPort);
     createWindow(appPort);
+    setupAutoUpdater();
   } catch (err) {
     console.error("Failed to start:", err);
     app.quit();
   }
+});
+
+// Auto-updater setup
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on("update-available", (info) => {
+    mainWindow?.webContents.send("update-available", info);
+  });
+
+  autoUpdater.on("update-not-available", () => {
+    mainWindow?.webContents.send("update-not-available");
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    mainWindow?.webContents.send("update-download-progress", progress);
+  });
+
+  autoUpdater.on("update-downloaded", (info) => {
+    mainWindow?.webContents.send("update-downloaded", info);
+  });
+
+  autoUpdater.on("error", (err) => {
+    mainWindow?.webContents.send("update-error", err.message);
+  });
+}
+
+// IPC handlers for update actions
+ipcMain.handle("check-for-updates", async () => {
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return { success: true, updateInfo: result?.updateInfo };
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
+});
+
+ipcMain.handle("download-update", async () => {
+  try {
+    await autoUpdater.downloadUpdate();
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
+});
+
+ipcMain.handle("install-update", () => {
+  autoUpdater.quitAndInstall(false, true);
+});
+
+ipcMain.handle("get-platform", () => {
+  return process.platform;
 });
