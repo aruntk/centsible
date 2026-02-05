@@ -47,7 +47,8 @@ function initSchema(db: DatabaseType) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
       color TEXT NOT NULL DEFAULT '#6b7280',
-      icon TEXT NOT NULL DEFAULT 'tag'
+      icon TEXT NOT NULL DEFAULT 'tag',
+      category_group TEXT NOT NULL DEFAULT 'other'
     );
 
     CREATE TABLE IF NOT EXISTS category_rules (
@@ -93,12 +94,44 @@ function initSchema(db: DatabaseType) {
     db.exec("ALTER TABLE category_rules ADD COLUMN condition_value2 REAL");
   }
 
+  // Migrate: add category_group column if missing
+  const catCols = db.prepare("PRAGMA table_info(categories)").all() as { name: string }[];
+  const catColNames = new Set(catCols.map((c) => c.name));
+  if (!catColNames.has("category_group")) {
+    db.exec("ALTER TABLE categories ADD COLUMN category_group TEXT NOT NULL DEFAULT 'other'");
+    // Update existing categories with appropriate groups
+    const groupMap: Record<string, string> = {
+      "Salary/Income": "income",
+      "Food & Dining": "living_expenditure",
+      "Shopping": "living_expenditure",
+      "Transport": "living_expenditure",
+      "Bills & Utilities": "living_expenditure",
+      "Entertainment": "living_expenditure",
+      "Health": "living_expenditure",
+      "Education": "living_expenditure",
+      "Vices": "living_expenditure",
+      "Subscriptions": "living_expenditure",
+      "Grocery": "living_expenditure",
+      "Car": "living_expenditure",
+      "Travel": "living_expenditure",
+      "Credit Card": "loan",
+      "CCBILL": "loan",
+      "Loans": "loan",
+      "Investments": "investment",
+      "Real Estate": "investment",
+      "Gold": "investment",
+    };
+    for (const [name, group] of Object.entries(groupMap)) {
+      db.prepare("UPDATE categories SET category_group = ? WHERE name = ?").run(group, name);
+    }
+  }
+
   // Seed new categories if missing
   const existingCats = db.prepare("SELECT name FROM categories").all() as { name: string }[];
   const existingNames = new Set(existingCats.map((c) => c.name));
-  for (const [name, color, icon] of NEW_CATEGORIES) {
+  for (const [name, color, icon, group] of NEW_CATEGORIES) {
     if (!existingNames.has(name)) {
-      db.prepare("INSERT INTO categories (name, color, icon) VALUES (?, ?, ?)").run(name, color, icon);
+      db.prepare("INSERT INTO categories (name, color, icon, category_group) VALUES (?, ?, ?, ?)").run(name, color, icon, group);
     }
   }
 
@@ -110,41 +143,41 @@ function initSchema(db: DatabaseType) {
 }
 
 export function seedDefaults(db: DatabaseType) {
-  const categories: [string, string, string][] = [
-    ["Food & Dining", "#ef4444", "utensils"],
-    ["Shopping", "#f97316", "shopping-bag"],
-    ["Transport", "#eab308", "car"],
-    ["Bills & Utilities", "#84cc16", "receipt"],
-    ["Transfers", "#22c55e", "arrow-right-left"],
-    ["Salary/Income", "#10b981", "banknote"],
-    ["Entertainment", "#06b6d4", "tv"],
-    ["Health", "#3b82f6", "heart-pulse"],
-    ["Education", "#8b5cf6", "graduation-cap"],
-    ["ATM Withdrawal", "#a855f7", "landmark"],
-    ["Credit Card", "#d946ef", "credit-card"],
-    ["Taxes & Charges", "#f43f5e", "percent"],
-    ["Investments", "#0ea5e9", "trending-up"],
-    ["Vices", "#b91c1c", "cigarette"],
-    ["Subscriptions", "#7c3aed", "repeat"],
-    ["Family & Friends", "#f59e0b", "users"],
-    ["Loans", "#64748b", "hand-coins"],
-    ["Grocery", "#16a34a", "shopping-cart"],
-    ["Real Estate", "#854d0e", "building"],
-    ["CCBILL", "#0369a1", "credit-card"],
-    ["Gold", "#ca8a04", "coins"],
-    ["Car", "#475569", "car"],
-    ["Fraud", "#dc2626", "alert-triangle"],
-    ["Travel", "#0891b2", "plane"],
-    ["Other", "#6b7280", "tag"],
+  const categories: [string, string, string, string][] = [
+    ["Food & Dining", "#ef4444", "utensils", "living_expenditure"],
+    ["Shopping", "#f97316", "shopping-bag", "living_expenditure"],
+    ["Transport", "#eab308", "car", "living_expenditure"],
+    ["Bills & Utilities", "#84cc16", "receipt", "living_expenditure"],
+    ["Transfers", "#22c55e", "arrow-right-left", "other"],
+    ["Salary/Income", "#10b981", "banknote", "income"],
+    ["Entertainment", "#06b6d4", "tv", "living_expenditure"],
+    ["Health", "#3b82f6", "heart-pulse", "living_expenditure"],
+    ["Education", "#8b5cf6", "graduation-cap", "living_expenditure"],
+    ["ATM Withdrawal", "#a855f7", "landmark", "other"],
+    ["Credit Card", "#d946ef", "credit-card", "loan"],
+    ["Taxes & Charges", "#f43f5e", "percent", "other"],
+    ["Investments", "#0ea5e9", "trending-up", "investment"],
+    ["Vices", "#b91c1c", "cigarette", "living_expenditure"],
+    ["Subscriptions", "#7c3aed", "repeat", "living_expenditure"],
+    ["Family & Friends", "#f59e0b", "users", "other"],
+    ["Loans", "#64748b", "hand-coins", "loan"],
+    ["Grocery", "#16a34a", "shopping-cart", "living_expenditure"],
+    ["Real Estate", "#854d0e", "building", "investment"],
+    ["CCBILL", "#0369a1", "credit-card", "loan"],
+    ["Gold", "#ca8a04", "coins", "investment"],
+    ["Car", "#475569", "car", "living_expenditure"],
+    ["Fraud", "#dc2626", "alert-triangle", "other"],
+    ["Travel", "#0891b2", "plane", "living_expenditure"],
+    ["Other", "#6b7280", "tag", "other"],
   ];
 
-  const insertCat = db.prepare("INSERT INTO categories (name, color, icon) VALUES (?, ?, ?)");
+  const insertCat = db.prepare("INSERT INTO categories (name, color, icon, category_group) VALUES (?, ?, ?, ?)");
   const insertRule = db.prepare("INSERT INTO category_rules (category_id, keyword, priority) VALUES (?, ?, ?)");
 
   const insertAll = db.transaction(() => {
     const catIds: Record<string, number> = {};
-    for (const [name, color, icon] of categories) {
-      const result = insertCat.run(name, color, icon);
+    for (const [name, color, icon, group] of categories) {
+      const result = insertCat.run(name, color, icon, group);
       catIds[name] = result.lastInsertRowid as number;
     }
 

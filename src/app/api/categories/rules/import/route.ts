@@ -6,6 +6,7 @@ type ImportedCategory = {
   name: string;
   color?: string;
   icon?: string;
+  category_group?: string;
 };
 
 type ImportedRule = {
@@ -38,11 +39,18 @@ export async function POST(req: NextRequest) {
     // Create any missing categories from the export
     if (Array.isArray(importedCategories) && importedCategories.length > 0) {
       const insertCat = db.prepare(
-        "INSERT OR IGNORE INTO categories (name, color, icon) VALUES (?, ?, ?)"
+        "INSERT OR IGNORE INTO categories (name, color, icon, category_group) VALUES (?, ?, ?, ?)"
+      );
+      const updateCatGroup = db.prepare(
+        "UPDATE categories SET category_group = ? WHERE name = ? AND category_group = 'other'"
       );
       for (const cat of importedCategories) {
         if (cat.name?.trim()) {
-          insertCat.run(cat.name.trim(), cat.color || "#6b7280", cat.icon || "tag");
+          insertCat.run(cat.name.trim(), cat.color || "#6b7280", cat.icon || "tag", cat.category_group || "other");
+          // Update category_group if it was imported and category already existed with default 'other'
+          if (cat.category_group && cat.category_group !== "other") {
+            updateCatGroup.run(cat.category_group, cat.name.trim());
+          }
         }
       }
     }

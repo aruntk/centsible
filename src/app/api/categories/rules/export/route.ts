@@ -12,8 +12,8 @@ export async function GET() {
   const db = getDb();
 
   const categories = db.prepare(
-    "SELECT name, color, icon FROM categories ORDER BY name"
-  ).all() as { name: string; color: string; icon: string }[];
+    "SELECT name, color, icon, category_group FROM categories ORDER BY name"
+  ).all() as { name: string; color: string; icon: string; category_group: string }[];
 
   const rules = db.prepare(`
     SELECT cr.keyword, cr.priority, cr.condition_field, cr.condition_op, cr.condition_value, cr.condition_value2,

@@ -164,14 +164,14 @@ export function DatabaseProvider({ children }: { children: ReactNode }) {
   );
 
   const updateCategory = useCallback(
-    async (id: number, name: string, color: string, icon: string) => {
+    async (id: number, name: string, color: string, icon: string, categoryGroup: string = "other") => {
       if (isMobileDb) {
-        return clientDb.updateCategory(id, name, color, icon);
+        return clientDb.updateCategory(id, name, color, icon, categoryGroup);
       }
       await fetch(`/api/categories/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, color, icon }),
+        body: JSON.stringify({ name, color, icon, category_group: categoryGroup }),
       });
     },
     [isMobileDb]

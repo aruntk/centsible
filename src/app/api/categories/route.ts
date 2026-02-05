@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not available in mobile build" }, { status: 501 });
   }
 
-  const { name, color, icon } = await req.json();
+  const { name, color, icon, category_group } = await req.json();
   logger.info("categories", `Creating category: ${name}`);
 
   if (!name || !name.trim()) {
@@ -48,8 +48,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Category already exists" }, { status: 409 });
   }
   const result = db.prepare(
-    "INSERT INTO categories (name, color, icon) VALUES (?, ?, ?)"
-  ).run(name.trim(), color || "#6b7280", icon || "tag");
+    "INSERT INTO categories (name, color, icon, category_group) VALUES (?, ?, ?, ?)"
+  ).run(name.trim(), color || "#6b7280", icon || "tag", category_group || "other");
   logger.info("categories", `Created category id=${result.lastInsertRowid}: ${name}`);
   return NextResponse.json({ id: result.lastInsertRowid });
 }
@@ -60,8 +60,8 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "Not available in mobile build" }, { status: 501 });
   }
 
-  const { id, name, color, icon } = await req.json();
-  logger.info("categories", `Updating category id=${id}: name=${name}, color=${color}`);
+  const { id, name, color, icon, category_group } = await req.json();
+  logger.info("categories", `Updating category id=${id}: name=${name}, color=${color}, group=${category_group}`);
 
   if (!id) {
     return NextResponse.json({ error: "Category id is required" }, { status: 400 });
@@ -87,8 +87,8 @@ export async function PATCH(req: Request) {
 
   // Update category
   const newName = name?.trim() || current.name;
-  db.prepare("UPDATE categories SET name = ?, color = COALESCE(?, color), icon = COALESCE(?, icon) WHERE id = ?")
-    .run(newName, color, icon, id);
+  db.prepare("UPDATE categories SET name = ?, color = COALESCE(?, color), icon = COALESCE(?, icon), category_group = COALESCE(?, category_group) WHERE id = ?")
+    .run(newName, color, icon, category_group, id);
 
   // Update transactions if name changed
   if (newName !== current.name) {

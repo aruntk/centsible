@@ -87,8 +87,45 @@ async function runMigrations(): Promise<void> {
   }
 
   // Seed new categories if missing - use INSERT OR IGNORE to handle duplicates
-  for (const [name, color, icon] of NEW_CATEGORIES) {
-    await _db.run("INSERT OR IGNORE INTO categories (name, color, icon) VALUES (?, ?, ?)", [name, color, icon]);
+  for (const [name, color, icon, group] of NEW_CATEGORIES) {
+    await _db.run("INSERT OR IGNORE INTO categories (name, color, icon, category_group) VALUES (?, ?, ?, ?)", [name, color, icon, group]);
+  }
+
+  // Add category_group column if missing
+  const catTableInfo = await _db.query("PRAGMA table_info(categories)");
+  const catColumns = new Set(
+    (catTableInfo.values || []).map((row) => {
+      return Array.isArray(row) ? row[1] as string : (row as Record<string, string>).name;
+    })
+  );
+
+  if (!catColumns.has("category_group")) {
+    await _db.execute("ALTER TABLE categories ADD COLUMN category_group TEXT NOT NULL DEFAULT 'other'");
+    // Update existing categories with appropriate groups
+    const groupMap: Record<string, string> = {
+      "Salary/Income": "income",
+      "Food & Dining": "living_expenditure",
+      "Shopping": "living_expenditure",
+      "Transport": "living_expenditure",
+      "Bills & Utilities": "living_expenditure",
+      "Entertainment": "living_expenditure",
+      "Health": "living_expenditure",
+      "Education": "living_expenditure",
+      "Vices": "living_expenditure",
+      "Subscriptions": "living_expenditure",
+      "Grocery": "living_expenditure",
+      "Car": "living_expenditure",
+      "Travel": "living_expenditure",
+      "Credit Card": "loan",
+      "CCBILL": "loan",
+      "Loans": "loan",
+      "Investments": "investment",
+      "Real Estate": "investment",
+      "Gold": "investment",
+    };
+    for (const [name, group] of Object.entries(groupMap)) {
+      await _db.run("UPDATE categories SET category_group = ? WHERE name = ?", [group, name]);
+    }
   }
 }
 
@@ -116,9 +153,9 @@ async function seedDefaults(): Promise<void> {
 
   const catIds: Record<string, number> = {};
 
-  for (const [name, color, icon] of DEFAULT_CATEGORIES) {
+  for (const [name, color, icon, group] of DEFAULT_CATEGORIES) {
     // Use INSERT OR IGNORE in case category already exists
-    const result = await _db.run("INSERT OR IGNORE INTO categories (name, color, icon) VALUES (?, ?, ?)", [name, color, icon]);
+    const result = await _db.run("INSERT OR IGNORE INTO categories (name, color, icon, category_group) VALUES (?, ?, ?, ?)", [name, color, icon, group]);
     if (result.changes?.lastId) {
       catIds[name] = result.changes.lastId;
     } else {
@@ -296,20 +333,20 @@ export async function deleteTransaction(id: number): Promise<void> {
 export async function getCategories(): Promise<Category[]> {
   if (!_db) throw new Error("Database not initialized");
 
-  const result = await _db.query("SELECT id, name, color, icon FROM categories ORDER BY name");
+  const result = await _db.query("SELECT id, name, color, icon, category_group FROM categories ORDER BY name");
   return (result.values || []).map(rowToCategory);
 }
 
-export async function createCategory(name: string, color: string, icon: string): Promise<number> {
+export async function createCategory(name: string, color: string, icon: string, categoryGroup: string = "other"): Promise<number> {
   if (!_db) throw new Error("Database not initialized");
 
-  const result = await _db.run("INSERT INTO categories (name, color, icon) VALUES (?, ?, ?)", [name, color, icon]);
+  const result = await _db.run("INSERT INTO categories (name, color, icon, category_group) VALUES (?, ?, ?, ?)", [name, color, icon, categoryGroup]);
   return result.changes?.lastId || 0;
 }
 
-export async function updateCategory(id: number, name: string, color: string, icon: string, oldName?: string): Promise<void> {
+export async function updateCategory(id: number, name: string, color: string, icon: string, categoryGroup: string, oldName?: string): Promise<void> {
   if (!_db) throw new Error("Database not initialized");
-  await _db.run("UPDATE categories SET name = ?, color = ?, icon = ? WHERE id = ?", [name, color, icon, id]);
+  await _db.run("UPDATE categories SET name = ?, color = ?, icon = ?, category_group = ? WHERE id = ?", [name, color, icon, categoryGroup, id]);
   // If name changed, update all transactions with the old category name
   if (oldName && oldName !== name) {
     await _db.run("UPDATE transactions SET category = ? WHERE category = ?", [name, oldName]);
@@ -435,9 +472,6 @@ export async function updateCategoryRule(id: number, rule: Partial<Omit<Category
 // Analytics Operations
 // =============================================================================
 
-const INVESTMENT_CATEGORIES = ['Investments', 'Gold', 'Real Estate'];
-const LOAN_CATEGORIES = ['Loans'];
-
 export interface FullAnalyticsResult {
   totalIncome: number;
   totalExpenses: number;
@@ -455,6 +489,7 @@ export interface FullAnalyticsResult {
   avgMonthlyInvestment: number;
   avgMonthlyGold: number;
   avgMonthlyRealEstate: number;
+  avgMonthlyExpense: number;
 }
 
 async function queryScalar(sql: string, params: (string | number)[] = []): Promise<number> {
@@ -490,57 +525,36 @@ export async function getFullAnalytics(from?: string, to?: string): Promise<Full
 
   console.log(`[db-client] where="${where}", andWhere="${andWhere}", params=${JSON.stringify(params)}`);
 
-  const totalIncome = await queryScalar(`SELECT COALESCE(SUM(deposit), 0) as v FROM transactions ${where}`, params);
   const totalWithdrawals = await queryScalar(`SELECT COALESCE(SUM(withdrawal), 0) as v FROM transactions ${where}`, params);
 
-  console.log(`[db-client] totalIncome=${totalIncome}, totalWithdrawals=${totalWithdrawals}`);
+  // Use category_group to compute totals
+  const tAndWhere = andWhere.replace(/date/g, 't.date');
 
-  // Total expenses excluding investments and loans
-  const expenseExclusions = [...INVESTMENT_CATEGORIES, ...LOAN_CATEGORIES];
-  const expenseParams = [...expenseExclusions, ...params];
-  const expensePlaceholders = expenseExclusions.map(() => '?').join(',');
+  // Total income: sum of deposits from income category_group
+  const totalIncome = await queryScalar(
+    `SELECT COALESCE(SUM(t.deposit), 0) as v FROM transactions t LEFT JOIN categories c ON t.category = c.name WHERE c.category_group = 'income' ${tAndWhere}`,
+    params
+  );
+
+  // Total expenses: withdrawals from living_expenditure category_group
   const totalExpenses = await queryScalar(
-    `SELECT COALESCE(SUM(withdrawal), 0) as v FROM transactions WHERE category NOT IN (${expensePlaceholders}) ${andWhere}`,
-    expenseParams
+    `SELECT COALESCE(SUM(t.withdrawal), 0) as v FROM transactions t LEFT JOIN categories c ON t.category = c.name WHERE c.category_group = 'living_expenditure' ${tAndWhere}`,
+    params
   );
 
-  console.log(`[db-client] totalExpenses=${totalExpenses}, expenseExclusions=${JSON.stringify(expenseExclusions)}`);
-
-  // Total investments
-  const invPlaceholders = INVESTMENT_CATEGORIES.map(() => '?').join(',');
-  const invParams = [...INVESTMENT_CATEGORIES, ...params];
-  const invSql = `SELECT COALESCE(SUM(withdrawal), 0) as v FROM transactions WHERE category IN (${invPlaceholders}) ${andWhere}`;
-  console.log(`[db-client] Investment SQL: ${invSql}`);
-  console.log(`[db-client] Investment params: ${JSON.stringify(invParams)}`);
-  const totalInvestments = await queryScalar(invSql, invParams);
-  console.log(`[db-client] totalInvestments=${totalInvestments}`);
-
-  // Debug: Check what categories actually exist in transactions
-  const categoryCheck = await _db.query("SELECT DISTINCT category FROM transactions");
-  console.log(`[db-client] Distinct categories in transactions:`, JSON.stringify(categoryCheck.values));
-
-  // Debug: Check investment category counts (without date filter)
-  const invCountCheck = await _db.query(
-    `SELECT category, COUNT(*) as cnt, SUM(withdrawal) as total FROM transactions WHERE category IN (${invPlaceholders}) GROUP BY category`,
-    INVESTMENT_CATEGORIES
+  // Total investments: withdrawals from investment category_group
+  const totalInvestments = await queryScalar(
+    `SELECT COALESCE(SUM(t.withdrawal), 0) as v FROM transactions t LEFT JOIN categories c ON t.category = c.name WHERE c.category_group = 'investment' ${tAndWhere}`,
+    params
   );
-  console.log(`[db-client] Investment category breakdown (no date filter):`, JSON.stringify(invCountCheck.values));
 
-  // Total loans
-  const loanPlaceholders = LOAN_CATEGORIES.map(() => '?').join(',');
-  const loanParams = [...LOAN_CATEGORIES, ...params];
-  const loanSql = `SELECT COALESCE(SUM(withdrawal), 0) as v FROM transactions WHERE category IN (${loanPlaceholders}) ${andWhere}`;
-  console.log(`[db-client] Loan SQL: ${loanSql}`);
-  console.log(`[db-client] Loan params: ${JSON.stringify(loanParams)}`);
-  const totalLoans = await queryScalar(loanSql, loanParams);
-  console.log(`[db-client] totalLoans=${totalLoans}`);
-
-  // Debug: Check loan category counts (without date filter)
-  const loanCountCheck = await _db.query(
-    `SELECT category, COUNT(*) as cnt, SUM(withdrawal) as total FROM transactions WHERE category IN (${loanPlaceholders}) GROUP BY category`,
-    LOAN_CATEGORIES
+  // Total loans: withdrawals from loan category_group
+  const totalLoans = await queryScalar(
+    `SELECT COALESCE(SUM(t.withdrawal), 0) as v FROM transactions t LEFT JOIN categories c ON t.category = c.name WHERE c.category_group = 'loan' ${tAndWhere}`,
+    params
   );
-  console.log(`[db-client] Loan category breakdown (no date filter):`, JSON.stringify(loanCountCheck.values));
+
+  console.log(`[db-client] totalIncome=${totalIncome}, totalExpenses=${totalExpenses}, totalInvestments=${totalInvestments}, totalLoans=${totalLoans}`);
 
   // By category
   const byCategory = await queryRows(
@@ -600,7 +614,7 @@ export async function getFullAnalytics(from?: string, to?: string): Promise<Full
 
   // Investment by month
   const investmentByMonth = await queryRows(
-    `SELECT strftime('%Y-%m', date) as month, SUM(withdrawal) as total FROM transactions WHERE category = 'Investments' AND withdrawal > 0 ${andWhere} GROUP BY month ORDER BY month`,
+    `SELECT strftime('%Y-%m', t.date) as month, SUM(t.withdrawal) as total FROM transactions t LEFT JOIN categories c ON t.category = c.name WHERE c.category_group = 'investment' AND t.withdrawal > 0 ${tAndWhere} GROUP BY month ORDER BY month`,
     params,
     (row) => {
       const r = row as unknown[];
@@ -661,6 +675,8 @@ export async function getFullAnalytics(from?: string, to?: string): Promise<Full
   const totalRealEstate = realEstateByMonth.reduce((s, m) => s + m.total, 0);
   const avgMonthlyRealEstate = totalRealEstate / totalMonths;
 
+  const avgMonthlyExpense = totalExpenses / totalMonths;
+
   // Current balance from the very last transaction (regardless of filters)
   const lastTxGlobalResult = await _db.query("SELECT closing_balance FROM transactions ORDER BY date DESC, id DESC LIMIT 1");
   let currentBalance = 0;
@@ -711,6 +727,7 @@ export async function getFullAnalytics(from?: string, to?: string): Promise<Full
     avgMonthlyInvestment,
     avgMonthlyGold,
     avgMonthlyRealEstate,
+    avgMonthlyExpense,
   };
 }
 
@@ -829,6 +846,7 @@ type ImportedCategory = {
   name: string;
   color?: string;
   icon?: string;
+  category_group?: string;
 };
 
 type ImportedRule = {
@@ -853,9 +871,16 @@ export async function importCategoryRules(
       if (cat.name?.trim()) {
         try {
           await _db.run(
-            "INSERT OR IGNORE INTO categories (name, color, icon) VALUES (?, ?, ?)",
-            [cat.name.trim(), cat.color || "#6b7280", cat.icon || "tag"]
+            "INSERT OR IGNORE INTO categories (name, color, icon, category_group) VALUES (?, ?, ?, ?)",
+            [cat.name.trim(), cat.color || "#6b7280", cat.icon || "tag", cat.category_group || "other"]
           );
+          // Update category_group if it was imported and category already existed with default 'other'
+          if (cat.category_group && cat.category_group !== "other") {
+            await _db.run(
+              "UPDATE categories SET category_group = ? WHERE name = ? AND category_group = 'other'",
+              [cat.category_group, cat.name.trim()]
+            );
+          }
         } catch {
           // Ignore duplicate errors
         }
@@ -1219,6 +1244,7 @@ function rowToCategory(row: unknown[] | Record<string, unknown>): Category {
       name: row[1] as string,
       color: row[2] as string,
       icon: row[3] as string,
+      category_group: (row[4] as string || "other") as Category["category_group"],
     };
   }
   return {
@@ -1226,5 +1252,6 @@ function rowToCategory(row: unknown[] | Record<string, unknown>): Category {
     name: row.name as string,
     color: row.color as string,
     icon: row.icon as string,
+    category_group: (row.category_group as string || "other") as Category["category_group"],
   };
 }

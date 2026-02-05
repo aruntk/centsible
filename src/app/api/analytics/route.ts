@@ -4,9 +4,6 @@ import { logger } from "@/lib/server-logger";
 
 const isMobileBuild = process.env.BUILD_TARGET === "mobile";
 
-const INVESTMENT_CATEGORIES = ['Investments', 'Gold', 'Real Estate'];
-const LOAN_CATEGORIES = ['Loans'];
-
 export async function GET(req: NextRequest) {
   if (isMobileBuild) {
     return NextResponse.json({
@@ -26,6 +23,7 @@ export async function GET(req: NextRequest) {
       avgMonthlyInvestment: 0,
       avgMonthlyGold: 0,
       avgMonthlyRealEstate: 0,
+      avgMonthlyExpense: 0,
     });
   }
 
@@ -46,30 +44,39 @@ export async function GET(req: NextRequest) {
   const where = conditions.length ? "WHERE " + conditions.join(" AND ") : "";
   const andWhere = conditions.length ? "AND " + conditions.join(" AND ") : "";
 
-  const totalIncome = (db.prepare(`SELECT COALESCE(SUM(deposit), 0) as v FROM transactions ${where}`).get(...params) as { v: number }).v;
+  // Total income: sum of deposits from income category_group
+  const totalIncome = (db.prepare(`
+    SELECT COALESCE(SUM(t.deposit), 0) as v
+    FROM transactions t
+    LEFT JOIN categories c ON t.category = c.name
+    WHERE c.category_group = 'income' ${andWhere.replace(/date/g, 't.date')}
+  `).get(...params) as { v: number }).v;
+
   const totalWithdrawals = (db.prepare(`SELECT COALESCE(SUM(withdrawal), 0) as v FROM transactions ${where}`).get(...params) as { v: number }).v;
 
-  // Compute totalExpenses excluding investments and loans
-  const expenseExclusions = [...INVESTMENT_CATEGORIES, ...LOAN_CATEGORIES];
+  // Total expenses: withdrawals from living_expenditure category_group
   const totalExpenses = (db.prepare(`
-    SELECT COALESCE(SUM(withdrawal), 0) as v
-    FROM transactions
-    WHERE category NOT IN (${expenseExclusions.map(() => '?').join(',')}) ${andWhere}
-  `).get(...expenseExclusions, ...params) as { v: number }).v;
+    SELECT COALESCE(SUM(t.withdrawal), 0) as v
+    FROM transactions t
+    LEFT JOIN categories c ON t.category = c.name
+    WHERE c.category_group = 'living_expenditure' ${andWhere.replace(/date/g, 't.date')}
+  `).get(...params) as { v: number }).v;
 
-  // Compute total investments
+  // Total investments: withdrawals from investment category_group
   const totalInvestments = (db.prepare(`
-    SELECT COALESCE(SUM(withdrawal), 0) as v
-    FROM transactions
-    WHERE category IN (${INVESTMENT_CATEGORIES.map(() => '?').join(',')}) ${andWhere}
-  `).get(...INVESTMENT_CATEGORIES, ...params) as { v: number }).v;
+    SELECT COALESCE(SUM(t.withdrawal), 0) as v
+    FROM transactions t
+    LEFT JOIN categories c ON t.category = c.name
+    WHERE c.category_group = 'investment' ${andWhere.replace(/date/g, 't.date')}
+  `).get(...params) as { v: number }).v;
 
-  // Compute total loans
+  // Total loans: withdrawals from loan category_group
   const totalLoans = (db.prepare(`
-    SELECT COALESCE(SUM(withdrawal), 0) as v
-    FROM transactions
-    WHERE category IN (${LOAN_CATEGORIES.map(() => '?').join(',')}) ${andWhere}
-  `).get(...LOAN_CATEGORIES, ...params) as { v: number }).v;
+    SELECT COALESCE(SUM(t.withdrawal), 0) as v
+    FROM transactions t
+    LEFT JOIN categories c ON t.category = c.name
+    WHERE c.category_group = 'loan' ${andWhere.replace(/date/g, 't.date')}
+  `).get(...params) as { v: number }).v;
 
   const byCategory = db.prepare(`
     SELECT category, SUM(withdrawal) as total, COUNT(*) as count
@@ -98,8 +105,10 @@ export async function GET(req: NextRequest) {
   `).all(...params) as { date: string; total: number }[];
 
   const investmentByMonth = db.prepare(`
-    SELECT strftime('%Y-%m', date) as month, SUM(withdrawal) as total
-    FROM transactions WHERE category = 'Investments' AND withdrawal > 0 ${andWhere}
+    SELECT strftime('%Y-%m', t.date) as month, SUM(t.withdrawal) as total
+    FROM transactions t
+    LEFT JOIN categories c ON t.category = c.name
+    WHERE c.category_group = 'investment' AND t.withdrawal > 0 ${andWhere.replace(/date/g, 't.date')}
     GROUP BY month ORDER BY month
   `).all(...params) as { month: string; total: number }[];
 
@@ -152,6 +161,8 @@ export async function GET(req: NextRequest) {
   const totalRealEstate = realEstateByMonth.reduce((s, m) => s + m.total, 0);
   const avgMonthlyRealEstate = totalRealEstate / totalMonths;
 
+  const avgMonthlyExpense = totalExpenses / totalMonths;
+
   return NextResponse.json({
     totalIncome,
     totalExpenses,
@@ -169,5 +180,6 @@ export async function GET(req: NextRequest) {
     avgMonthlyInvestment,
     avgMonthlyGold,
     avgMonthlyRealEstate,
+    avgMonthlyExpense,
   });
 }

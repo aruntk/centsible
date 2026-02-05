@@ -1,24 +1,35 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { Suspense, useEffect, useState, useMemo, useCallback } from "react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 import { formatCurrency } from "@/lib/utils";
 import { isCapacitor } from "@/lib/platform";
+import TimeFilter from "@/components/TimeFilter";
+import { useTimeFilter } from "@/hooks/useTimeFilter";
 
-function computeGrowth(lumpsum: number, monthly: number, annualReturn: number, stepUp: number, years: number) {
+function computeGrowth(lumpsum: number, monthly: number, annualReturn: number, stepUp: number, years: number, investYears?: number) {
   const mr = annualReturn / 100 / 12;
   let value = lumpsum;
   let invested = lumpsum;
   let sip = monthly;
+  const effectiveInvestYears = investYears && investYears > 0 ? investYears : years;
   const rows: { year: number; sip: number; invested: number; value: number }[] = [];
 
   for (let y = 1; y <= years; y++) {
+    const isInvesting = y <= effectiveInvestYears;
     for (let m = 0; m < 12; m++) {
-      value = (value + sip) * (1 + mr);
-      invested += sip;
+      if (isInvesting) {
+        value = (value + sip) * (1 + mr);
+        invested += sip;
+      } else {
+        // No more contributions, just compound
+        value = value * (1 + mr);
+      }
     }
-    rows.push({ year: y, sip: Math.round(sip), invested: Math.round(invested), value: Math.round(value) });
-    sip *= (1 + stepUp / 100);
+    rows.push({ year: y, sip: isInvesting ? Math.round(sip) : 0, invested: Math.round(invested), value: Math.round(value) });
+    if (isInvesting) {
+      sip *= (1 + stepUp / 100);
+    }
   }
   return rows;
 }
@@ -26,55 +37,76 @@ function computeGrowth(lumpsum: number, monthly: number, annualReturn: number, s
 const fmt = (v: number) =>
   v >= 10000000 ? `₹${(v / 10000000).toFixed(1)}Cr` : v >= 100000 ? `₹${(v / 100000).toFixed(0)}L` : `₹${(v / 1000).toFixed(0)}k`;
 
-export default function SIPCalculatorPage() {
+function SIPCalculatorInner() {
+  const { apiParams, effectiveFrom, effectiveTo, preset } = useTimeFilter();
   // SIP (equity/MF)
   const [sipLumpsum, setSipLumpsum] = useState(0);
   const [sipMonthly, setSipMonthly] = useState(10000);
   const [sipStepUp, setSipStepUp] = useState(10);
   const [sipReturn, setSipReturn] = useState(12);
+  const [sipInvestYears, setSipInvestYears] = useState<number | "">("");
   // Gold
   const [goldLumpsum, setGoldLumpsum] = useState(0);
   const [goldMonthly, setGoldMonthly] = useState(0);
   const [goldStepUp, setGoldStepUp] = useState(10);
   const [goldReturn, setGoldReturn] = useState(8);
+  const [goldInvestYears, setGoldInvestYears] = useState<number | "">("");
   // Real Estate
   const [reLumpsum, setReLumpsum] = useState(0);
   const [reMonthly, setReMonthly] = useState(0);
   const [reStepUp, setReStepUp] = useState(10);
   const [reReturn, setReReturn] = useState(6);
+  const [reInvestYears, setReInvestYears] = useState<number | "">("");
   // Common
   const [inflation, setInflation] = useState(6);
   const [years, setYears] = useState(5);
   const [loaded, setLoaded] = useState(false);
+  // Retirement planning
+  const [currentMonthlyExpense, setCurrentMonthlyExpense] = useState(0);
+  const [withdrawalRate, setWithdrawalRate] = useState(4);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        if (isCapacitor()) {
-          const { initClientDb, getFullAnalytics } = await import("@/lib/db-client");
-          await initClientDb();
-          const d = await getFullAnalytics();
-          if (d.avgMonthlyInvestment > 0) setSipMonthly(Math.round(d.avgMonthlyInvestment));
-          if (d.avgMonthlyGold > 0) setGoldMonthly(Math.round(d.avgMonthlyGold));
-          if (d.avgMonthlyRealEstate > 0) setReMonthly(Math.round(d.avgMonthlyRealEstate));
-        } else {
-          const r = await fetch("/api/analytics");
-          const d = await r.json();
-          if (d.avgMonthlyInvestment > 0) setSipMonthly(Math.round(d.avgMonthlyInvestment));
-          if (d.avgMonthlyGold > 0) setGoldMonthly(Math.round(d.avgMonthlyGold));
-          if (d.avgMonthlyRealEstate > 0) setReMonthly(Math.round(d.avgMonthlyRealEstate));
-        }
-      } catch (err) {
-        console.error("Failed to load analytics for SIP:", err);
+  // Compute date range label for the title
+  const dateRangeLabel = useMemo(() => {
+    if (preset === "all") return "all time";
+    if (effectiveFrom && effectiveTo) {
+      const from = new Date(effectiveFrom);
+      const to = new Date(effectiveTo);
+      const fromStr = from.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+      const toStr = to.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+      return `${fromStr} - ${toStr}`;
+    }
+    return preset;
+  }, [effectiveFrom, effectiveTo, preset]);
+
+  const loadData = useCallback(async () => {
+    try {
+      if (isCapacitor()) {
+        const { initClientDb, getFullAnalytics } = await import("@/lib/db-client");
+        await initClientDb();
+        const d = await getFullAnalytics(effectiveFrom || undefined, effectiveTo || undefined);
+        if (d.avgMonthlyInvestment > 0) setSipMonthly(Math.round(d.avgMonthlyInvestment));
+        if (d.avgMonthlyGold > 0) setGoldMonthly(Math.round(d.avgMonthlyGold));
+        if (d.avgMonthlyRealEstate > 0) setReMonthly(Math.round(d.avgMonthlyRealEstate));
+        if (d.avgMonthlyExpense > 0) setCurrentMonthlyExpense(Math.round(d.avgMonthlyExpense));
+      } else {
+        const r = await fetch(`/api/analytics?${apiParams}`);
+        const d = await r.json();
+        if (d.avgMonthlyInvestment > 0) setSipMonthly(Math.round(d.avgMonthlyInvestment));
+        if (d.avgMonthlyGold > 0) setGoldMonthly(Math.round(d.avgMonthlyGold));
+        if (d.avgMonthlyRealEstate > 0) setReMonthly(Math.round(d.avgMonthlyRealEstate));
+        if (d.avgMonthlyExpense > 0) setCurrentMonthlyExpense(Math.round(d.avgMonthlyExpense));
       }
-      setLoaded(true);
-    };
-    loadData();
-  }, []);
+    } catch (err) {
+      console.error("Failed to load analytics for SIP:", err);
+    }
+    setLoaded(true);
+  }, [apiParams, effectiveFrom, effectiveTo]);
 
-  const sipRows = useMemo(() => computeGrowth(sipLumpsum, sipMonthly, sipReturn, sipStepUp, years), [sipLumpsum, sipMonthly, sipReturn, sipStepUp, years]);
-  const goldRows = useMemo(() => computeGrowth(goldLumpsum, goldMonthly, goldReturn, goldStepUp, years), [goldLumpsum, goldMonthly, goldReturn, goldStepUp, years]);
-  const reRows = useMemo(() => computeGrowth(reLumpsum, reMonthly, reReturn, reStepUp, years), [reLumpsum, reMonthly, reReturn, reStepUp, years]);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const sipRows = useMemo(() => computeGrowth(sipLumpsum, sipMonthly, sipReturn, sipStepUp, years, sipInvestYears || undefined), [sipLumpsum, sipMonthly, sipReturn, sipStepUp, years, sipInvestYears]);
+  const goldRows = useMemo(() => computeGrowth(goldLumpsum, goldMonthly, goldReturn, goldStepUp, years, goldInvestYears || undefined), [goldLumpsum, goldMonthly, goldReturn, goldStepUp, years, goldInvestYears]);
+  const reRows = useMemo(() => computeGrowth(reLumpsum, reMonthly, reReturn, reStepUp, years, reInvestYears || undefined), [reLumpsum, reMonthly, reReturn, reStepUp, years, reInvestYears]);
 
   const chartData = useMemo(() => sipRows.map((s, i) => ({
     year: `Y${s.year}`,
@@ -89,20 +121,42 @@ export default function SIPCalculatorPage() {
   const inflationFactor = Math.pow(1 + inflation / 100, years);
   const realTotal = Math.round(totalValue / inflationFactor);
 
+  // Retirement planning calculations
+  // Withdrawal starts after all investments are complete (max of all invest years)
+  const maxInvestYears = Math.max(
+    sipInvestYears || years,
+    goldInvestYears || years,
+    reInvestYears || years
+  );
+  const retirementInflationFactor = Math.pow(1 + inflation / 100, maxInvestYears);
+  const futureMonthlyExpense = Math.round(currentMonthlyExpense * retirementInflationFactor);
+  const futureAnnualExpense = futureMonthlyExpense * 12;
+  const requiredCorpus = withdrawalRate > 0 ? Math.round(futureAnnualExpense / (withdrawalRate / 100)) : 0;
+  const corpusSurplusDeficit = totalValue - requiredCorpus;
+
   if (!loaded) return <div className="text-center py-20 text-gray-400">Loading...</div>;
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">SIP Calculator</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">SIP Calculator</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Monthly prefilled from <span className="font-medium">{dateRangeLabel}</span>
+          </p>
+        </div>
+        <TimeFilter />
+      </div>
 
       {/* SIP Inputs */}
       <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
         <h2 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">Equity / Mutual Funds ({sipReturn}% return)</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Field label="Lumpsum" value={sipLumpsum} onChange={setSipLumpsum} />
           <Field label="Monthly SIP" value={sipMonthly} onChange={setSipMonthly} />
           <Field label="Step-up %" value={sipStepUp} onChange={setSipStepUp} />
           <Field label="Return %" value={sipReturn} onChange={setSipReturn} />
+          <OptionalField label="Invest (yrs)" value={sipInvestYears} onChange={setSipInvestYears} placeholder={String(years)} />
         </div>
       </div>
 
@@ -110,22 +164,24 @@ export default function SIPCalculatorPage() {
         {/* Gold Inputs */}
         <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
           <h2 className="font-semibold text-yellow-700 dark:text-yellow-500 mb-3">Gold ({goldReturn}% return)</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <Field label="Lumpsum" value={goldLumpsum} onChange={setGoldLumpsum} />
             <Field label="Monthly" value={goldMonthly} onChange={setGoldMonthly} />
             <Field label="Step-up %" value={goldStepUp} onChange={setGoldStepUp} />
             <Field label="Return %" value={goldReturn} onChange={setGoldReturn} />
+            <OptionalField label="Invest (yrs)" value={goldInvestYears} onChange={setGoldInvestYears} placeholder={String(years)} />
           </div>
         </div>
 
         {/* Real Estate Inputs */}
         <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
           <h2 className="font-semibold text-amber-800 dark:text-amber-500 mb-3">Real Estate ({reReturn}% return)</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <Field label="Lumpsum" value={reLumpsum} onChange={setReLumpsum} />
             <Field label="Monthly" value={reMonthly} onChange={setReMonthly} />
             <Field label="Step-up %" value={reStepUp} onChange={setReStepUp} />
             <Field label="Return %" value={reReturn} onChange={setReReturn} />
+            <OptionalField label="Invest (yrs)" value={reInvestYears} onChange={setReInvestYears} placeholder={String(years)} />
           </div>
         </div>
       </div>
@@ -136,6 +192,41 @@ export default function SIPCalculatorPage() {
           <Field label="Inflation %" value={inflation} onChange={setInflation} />
           <Field label="Duration (years)" value={years} onChange={(v) => setYears(Math.max(1, v))} />
         </div>
+      </div>
+
+      {/* Retirement Planning */}
+      <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm">
+        <h2 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">Retirement Planning</h2>
+        <div className="grid grid-cols-2 md:grid-cols-2 gap-4 max-w-md mb-4">
+          <Field label="Current Monthly Expense" value={currentMonthlyExpense} onChange={setCurrentMonthlyExpense} />
+          <Field label="Withdrawal Rate %" value={withdrawalRate} onChange={setWithdrawalRate} />
+        </div>
+        {currentMonthlyExpense > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div className="text-xs text-gray-500 dark:text-gray-400">Future Monthly Expense</div>
+              <div className="text-lg font-semibold text-gray-800 dark:text-gray-200">{formatCurrency(futureMonthlyExpense)}</div>
+              <div className="text-xs text-gray-400">After {maxInvestYears} years</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div className="text-xs text-gray-500 dark:text-gray-400">Future Annual Expense</div>
+              <div className="text-lg font-semibold text-gray-800 dark:text-gray-200">{formatCurrency(futureAnnualExpense)}</div>
+              <div className="text-xs text-gray-400">At year {maxInvestYears}</div>
+            </div>
+            <div className="text-center p-3 bg-red-50 dark:bg-red-900/30 rounded-lg">
+              <div className="text-xs text-gray-500 dark:text-gray-400">Corpus Needed</div>
+              <div className="text-lg font-semibold text-red-600 dark:text-red-400">{formatCurrency(requiredCorpus)}</div>
+              <div className="text-xs text-gray-400">{withdrawalRate}% SWR</div>
+            </div>
+            <div className={`text-center p-3 rounded-lg ${corpusSurplusDeficit >= 0 ? 'bg-green-50 dark:bg-green-900/30' : 'bg-red-50 dark:bg-red-900/30'}`}>
+              <div className="text-xs text-gray-500 dark:text-gray-400">{corpusSurplusDeficit >= 0 ? 'Surplus' : 'Shortfall'}</div>
+              <div className={`text-lg font-semibold ${corpusSurplusDeficit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                {corpusSurplusDeficit >= 0 ? '' : '-'}{formatCurrency(Math.abs(corpusSurplusDeficit))}
+              </div>
+              <div className="text-xs text-gray-400">vs projected portfolio</div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Summary Cards */}
@@ -223,6 +314,21 @@ function Field({ label, value, onChange }: { label: string; value: number; onCha
   );
 }
 
+function OptionalField({ label, value, onChange, placeholder }: { label: string; value: number | ""; onChange: (v: number | "") => void; placeholder?: string }) {
+  return (
+    <div>
+      <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">{label}</label>
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+        placeholder={placeholder}
+        className="w-full border dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 dark:text-gray-200 placeholder:text-gray-400"
+      />
+    </div>
+  );
+}
+
 function Card({ label, value, sub, color, custom }: { label: string; value: number; sub?: string; color: string; custom?: string }) {
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-800 p-5 shadow-sm text-center">
@@ -230,5 +336,13 @@ function Card({ label, value, sub, color, custom }: { label: string; value: numb
       <div className={`text-xl font-bold ${color}`}>{custom ?? formatCurrency(value)}</div>
       {sub && <div className="text-xs text-gray-400 mt-1">{sub}</div>}
     </div>
+  );
+}
+
+export default function SIPCalculatorPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-20 text-gray-400">Loading...</div>}>
+      <SIPCalculatorInner />
+    </Suspense>
   );
 }

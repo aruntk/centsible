@@ -17,11 +17,14 @@ export type Transaction = {
   merchant: string;
 };
 
+export type CategoryGroup = 'income' | 'living_expenditure' | 'loan' | 'investment' | 'other';
+
 export type Category = {
   id: number;
   name: string;
   color: string;
   icon: string;
+  category_group: CategoryGroup;
 };
 
 export type CategoryRule = {
@@ -58,7 +61,8 @@ export const DB_SCHEMA = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
     color TEXT NOT NULL DEFAULT '#6b7280',
-    icon TEXT NOT NULL DEFAULT 'tag'
+    icon TEXT NOT NULL DEFAULT 'tag',
+    category_group TEXT NOT NULL DEFAULT 'other'
   );
 
   CREATE TABLE IF NOT EXISTS category_rules (
@@ -92,32 +96,32 @@ export const DB_SCHEMA = `
   );
 `;
 
-export const DEFAULT_CATEGORIES: [string, string, string][] = [
-  ["Food & Dining", "#ef4444", "utensils"],
-  ["Shopping", "#f97316", "shopping-bag"],
-  ["Transport", "#eab308", "car"],
-  ["Bills & Utilities", "#84cc16", "receipt"],
-  ["Transfers", "#22c55e", "arrow-right-left"],
-  ["Salary/Income", "#10b981", "banknote"],
-  ["Entertainment", "#06b6d4", "tv"],
-  ["Health", "#3b82f6", "heart-pulse"],
-  ["Education", "#8b5cf6", "graduation-cap"],
-  ["ATM Withdrawal", "#a855f7", "landmark"],
-  ["Credit Card", "#d946ef", "credit-card"],
-  ["Taxes & Charges", "#f43f5e", "percent"],
-  ["Investments", "#0ea5e9", "trending-up"],
-  ["Vices", "#b91c1c", "cigarette"],
-  ["Subscriptions", "#7c3aed", "repeat"],
-  ["Family & Friends", "#f59e0b", "users"],
-  ["Loans", "#64748b", "hand-coins"],
-  ["Grocery", "#16a34a", "shopping-cart"],
-  ["Real Estate", "#854d0e", "building"],
-  ["CCBILL", "#0369a1", "credit-card"],
-  ["Gold", "#ca8a04", "coins"],
-  ["Car", "#475569", "car"],
-  ["Fraud", "#dc2626", "alert-triangle"],
-  ["Travel", "#0891b2", "plane"],
-  ["Other", "#6b7280", "tag"],
+export const DEFAULT_CATEGORIES: [string, string, string, CategoryGroup][] = [
+  ["Food & Dining", "#ef4444", "utensils", "living_expenditure"],
+  ["Shopping", "#f97316", "shopping-bag", "living_expenditure"],
+  ["Transport", "#eab308", "car", "living_expenditure"],
+  ["Bills & Utilities", "#84cc16", "receipt", "living_expenditure"],
+  ["Transfers", "#22c55e", "arrow-right-left", "other"],
+  ["Salary/Income", "#10b981", "banknote", "income"],
+  ["Entertainment", "#06b6d4", "tv", "living_expenditure"],
+  ["Health", "#3b82f6", "heart-pulse", "living_expenditure"],
+  ["Education", "#8b5cf6", "graduation-cap", "living_expenditure"],
+  ["ATM Withdrawal", "#a855f7", "landmark", "other"],
+  ["Credit Card", "#d946ef", "credit-card", "loan"],
+  ["Taxes & Charges", "#f43f5e", "percent", "other"],
+  ["Investments", "#0ea5e9", "trending-up", "investment"],
+  ["Vices", "#b91c1c", "cigarette", "living_expenditure"],
+  ["Subscriptions", "#7c3aed", "repeat", "living_expenditure"],
+  ["Family & Friends", "#f59e0b", "users", "other"],
+  ["Loans", "#64748b", "hand-coins", "loan"],
+  ["Grocery", "#16a34a", "shopping-cart", "living_expenditure"],
+  ["Real Estate", "#854d0e", "building", "investment"],
+  ["CCBILL", "#0369a1", "credit-card", "loan"],
+  ["Gold", "#ca8a04", "coins", "investment"],
+  ["Car", "#475569", "car", "living_expenditure"],
+  ["Fraud", "#dc2626", "alert-triangle", "other"],
+  ["Travel", "#0891b2", "plane", "living_expenditure"],
+  ["Other", "#6b7280", "tag", "other"],
 ];
 
 export const DEFAULT_RULES: [string, string, number][] = [
@@ -181,16 +185,16 @@ export const DEFAULT_RULES: [string, string, number][] = [
   ["Investments", "sip", 8],
 ];
 
-export const NEW_CATEGORIES: [string, string, string][] = [
-  ["Vices", "#b91c1c", "cigarette"],
-  ["Subscriptions", "#7c3aed", "repeat"],
-  ["Family & Friends", "#f59e0b", "users"],
-  ["Loans", "#64748b", "hand-coins"],
-  ["Grocery", "#16a34a", "shopping-cart"],
-  ["Real Estate", "#854d0e", "building"],
-  ["CCBILL", "#0369a1", "credit-card"],
-  ["Gold", "#ca8a04", "coins"],
-  ["Car", "#475569", "car"],
-  ["Fraud", "#dc2626", "alert-triangle"],
-  ["Travel", "#0891b2", "plane"],
+export const NEW_CATEGORIES: [string, string, string, CategoryGroup][] = [
+  ["Vices", "#b91c1c", "cigarette", "living_expenditure"],
+  ["Subscriptions", "#7c3aed", "repeat", "living_expenditure"],
+  ["Family & Friends", "#f59e0b", "users", "other"],
+  ["Loans", "#64748b", "hand-coins", "loan"],
+  ["Grocery", "#16a34a", "shopping-cart", "living_expenditure"],
+  ["Real Estate", "#854d0e", "building", "investment"],
+  ["CCBILL", "#0369a1", "credit-card", "loan"],
+  ["Gold", "#ca8a04", "coins", "investment"],
+  ["Car", "#475569", "car", "living_expenditure"],
+  ["Fraud", "#dc2626", "alert-triangle", "other"],
+  ["Travel", "#0891b2", "plane", "living_expenditure"],
 ];

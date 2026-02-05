@@ -59,6 +59,7 @@ function TransactionsInner() {
   const { apiParams } = useTimeFilter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [balanceData, setBalanceData] = useState<{ openingBalance: number; closingBalance: number } | null>(null);
+  const [livingExpenseCategories, setLivingExpenseCategories] = useState<Set<string>>(new Set());
   const gridRef = useRef<AgGridReact>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -76,7 +77,7 @@ function TransactionsInner() {
     const isMobile = isCapacitor();
     if (isMobile) {
       // Mobile: use client-side database
-      const { initClientDb, getTransactions, getFullAnalytics } = await import("@/lib/db-client");
+      const { initClientDb, getTransactions, getFullAnalytics, getCategories } = await import("@/lib/db-client");
       await initClientDb();
 
       // Parse from/to from apiParams
@@ -88,6 +89,10 @@ function TransactionsInner() {
 
       const analytics = await getFullAnalytics(fromDate, toDate);
       setBalanceData({ openingBalance: analytics.openingBalance, closingBalance: analytics.closingBalance });
+
+      // Load categories to identify living expense categories
+      const cats = await getCategories();
+      setLivingExpenseCategories(new Set(cats.filter(c => c.category_group === "living_expenditure").map(c => c.name)));
     } else {
       // Desktop: use API
       const txParams = new URLSearchParams(apiParams);
@@ -98,6 +103,13 @@ function TransactionsInner() {
       fetch(`/api/analytics?${apiParams}`)
         .then((r) => r.json())
         .then((d) => setBalanceData({ openingBalance: d.openingBalance, closingBalance: d.closingBalance }));
+      // Load categories to identify living expense categories
+      fetch("/api/categories")
+        .then((r) => r.json())
+        .then((d) => {
+          const livingCats = (d.categories || []).filter((c: { category_group: string }) => c.category_group === "living_expenditure");
+          setLivingExpenseCategories(new Set(livingCats.map((c: { name: string }) => c.name)));
+        });
     }
   }, [apiParams]);
 
@@ -107,22 +119,20 @@ function TransactionsInner() {
 
   const recalculateNetTotal = useCallback(() => {
     if (!gridRef.current?.api) {
-      // Fallback to raw transactions if grid not ready
-      const totalDeposits = transactions.reduce((sum, t) => sum + (t.deposit || 0), 0);
-      const totalWithdrawals = transactions.reduce((sum, t) => sum + (t.withdrawal || 0), 0);
-      setNetTotal(totalDeposits - totalWithdrawals);
+      // Fallback to raw transactions if grid not ready - only living expenses
+      const livingTxns = transactions.filter(t => livingExpenseCategories.has(t.category));
+      const totalWithdrawals = livingTxns.reduce((sum, t) => sum + (t.withdrawal || 0), 0);
+      setNetTotal(-totalWithdrawals);
       return;
     }
-    let totalDeposits = 0;
     let totalWithdrawals = 0;
     gridRef.current.api.forEachNodeAfterFilter((node) => {
-      if (node.data) {
-        totalDeposits += node.data.deposit || 0;
+      if (node.data && livingExpenseCategories.has(node.data.category)) {
         totalWithdrawals += node.data.withdrawal || 0;
       }
     });
-    setNetTotal(totalDeposits - totalWithdrawals);
-  }, [transactions]);
+    setNetTotal(-totalWithdrawals);
+  }, [transactions, livingExpenseCategories]);
 
   const addTransaction = async () => {
     if (!form.date || !form.narration.trim()) return;
@@ -436,8 +446,8 @@ function TransactionsInner() {
           <span className="text-gray-300 dark:text-gray-600">→</span>
           <span className="text-amber-600 dark:text-amber-400 font-medium whitespace-nowrap">Close: {formatCurrency(balanceData.closingBalance)}</span>
           <span className="text-gray-300 dark:text-gray-600">|</span>
-          <span className={`font-medium whitespace-nowrap ${netTotal >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-            Net: {netTotal >= 0 ? "" : "-"}{formatCurrency(Math.abs(netTotal))}
+          <span className="font-medium whitespace-nowrap text-red-600 dark:text-red-400">
+            Expenses: {formatCurrency(Math.abs(netTotal))}
           </span>
         </div>
       )}

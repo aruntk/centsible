@@ -6,7 +6,16 @@ import { writeFileToDocuments } from "@/lib/file-picker";
 import { isCapacitor } from "@/lib/platform";
 import { Trash2, Plus, RefreshCw, Pencil, Check, X, Download, Upload, AlertTriangle } from "lucide-react";
 
-type Category = { id: number; name: string; color: string; icon: string };
+type CategoryGroup = 'income' | 'living_expenditure' | 'loan' | 'investment' | 'other';
+type Category = { id: number; name: string; color: string; icon: string; category_group: CategoryGroup };
+
+const CATEGORY_GROUPS: { value: CategoryGroup; label: string }[] = [
+  { value: "living_expenditure", label: "Living Expense" },
+  { value: "income", label: "Income" },
+  { value: "loan", label: "Loan" },
+  { value: "investment", label: "Investment" },
+  { value: "other", label: "Other" },
+];
 type Rule = {
   id: number; category_id: number; keyword: string | null; priority: number; category_name: string;
   condition_field: string | null; condition_op: string | null; condition_value: number | null; condition_value2: number | null;
@@ -55,10 +64,12 @@ export default function CategoriesPage() {
   const [editState, setEditState] = useState<EditState | null>(null);
   const [newCatName, setNewCatName] = useState("");
   const [newCatColor, setNewCatColor] = useState("#6b7280");
+  const [newCatGroup, setNewCatGroup] = useState<CategoryGroup>("living_expenditure");
   const [newCatError, setNewCatError] = useState("");
   const [editingCatId, setEditingCatId] = useState<number | null>(null);
   const [editCatName, setEditCatName] = useState("");
   const [editCatColor, setEditCatColor] = useState("");
+  const [editCatGroup, setEditCatGroup] = useState<CategoryGroup>("other");
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState("");
   const load = useCallback(async () => {
@@ -161,7 +172,7 @@ export default function CategoriesPage() {
       const cats = await getCategories();
       const rls = await getCategoryRules();
       data = {
-        categories: cats.map(c => ({ name: c.name, color: c.color, icon: c.icon })),
+        categories: cats.map(c => ({ name: c.name, color: c.color, icon: c.icon, category_group: c.category_group })),
         rules: rls.map(r => ({
           category_name: r.category_name,
           keyword: r.keyword,
@@ -251,7 +262,7 @@ export default function CategoriesPage() {
       try {
         const { initClientDb, createCategory } = await import("@/lib/db-client");
         await initClientDb();
-        await createCategory(newCatName.trim(), newCatColor, "tag");
+        await createCategory(newCatName.trim(), newCatColor, "tag", newCatGroup);
       } catch (err) {
         setNewCatError(err instanceof Error ? err.message : "Failed to create category");
         return;
@@ -260,7 +271,7 @@ export default function CategoriesPage() {
       const res = await fetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newCatName.trim(), color: newCatColor }),
+        body: JSON.stringify({ name: newCatName.trim(), color: newCatColor, category_group: newCatGroup }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -271,6 +282,7 @@ export default function CategoriesPage() {
 
     setNewCatName("");
     setNewCatColor("#6b7280");
+    setNewCatGroup("living_expenditure");
     load();
   };
 
@@ -278,12 +290,14 @@ export default function CategoriesPage() {
     setEditingCatId(c.id);
     setEditCatName(c.name);
     setEditCatColor(c.color);
+    setEditCatGroup(c.category_group || "other");
   };
 
   const cancelEditCategory = () => {
     setEditingCatId(null);
     setEditCatName("");
     setEditCatColor("");
+    setEditCatGroup("other");
   };
 
   const saveEditCategory = async () => {
@@ -294,12 +308,12 @@ export default function CategoriesPage() {
     if (isCapacitor()) {
       const { initClientDb, updateCategory } = await import("@/lib/db-client");
       await initClientDb();
-      await updateCategory(editingCatId, editCatName.trim(), editCatColor, oldCat.icon, oldCat.name);
+      await updateCategory(editingCatId, editCatName.trim(), editCatColor, oldCat.icon, editCatGroup, oldCat.name);
     } else {
       const res = await fetch("/api/categories", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: editingCatId, name: editCatName.trim(), color: editCatColor }),
+        body: JSON.stringify({ id: editingCatId, name: editCatName.trim(), color: editCatColor, category_group: editCatGroup }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -652,6 +666,16 @@ export default function CategoriesPage() {
               className="border dark:border-gray-700 rounded-lg w-10 h-9 cursor-pointer"
             />
           </div>
+          <div>
+            <label className="text-xs text-gray-500 dark:text-gray-400 block mb-1">Group</label>
+            <select
+              value={newCatGroup}
+              onChange={(e) => setNewCatGroup(e.target.value as CategoryGroup)}
+              className={inputCls}
+            >
+              {CATEGORY_GROUPS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
+            </select>
+          </div>
           <button
             onClick={addCategory}
             className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 hover:bg-gray-800 dark:hover:bg-gray-200"
@@ -663,7 +687,7 @@ export default function CategoriesPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-5">
           {categories.map((c) =>
             editingCatId === c.id ? (
-              <div key={c.id} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2">
+              <div key={c.id} className="flex flex-wrap items-center gap-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2">
                 <input
                   type="color"
                   value={editCatColor}
@@ -674,9 +698,16 @@ export default function CategoriesPage() {
                   type="text"
                   value={editCatName}
                   onChange={(e) => setEditCatName(e.target.value)}
-                  className={`flex-1 ${inputSmCls}`}
+                  className={`flex-1 min-w-[100px] ${inputSmCls}`}
                   onKeyDown={(e) => e.key === "Enter" && saveEditCategory()}
                 />
+                <select
+                  value={editCatGroup}
+                  onChange={(e) => setEditCatGroup(e.target.value as CategoryGroup)}
+                  className={inputSmCls}
+                >
+                  {CATEGORY_GROUPS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
+                </select>
                 <button onClick={saveEditCategory} className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 p-1">
                   <Check className="w-4 h-4" />
                 </button>
@@ -688,6 +719,9 @@ export default function CategoriesPage() {
               <div key={c.id} className="flex items-center gap-2 group hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg p-2 -m-2">
                 <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
                 <span className="text-sm text-gray-700 dark:text-gray-300 flex-1">{c.name}</span>
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
+                  {CATEGORY_GROUPS.find(g => g.value === c.category_group)?.label || "Other"}
+                </span>
                 <button
                   onClick={() => startEditCategory(c)}
                   className="text-gray-400 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
