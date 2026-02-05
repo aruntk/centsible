@@ -307,9 +307,13 @@ export async function createCategory(name: string, color: string, icon: string):
   return result.changes?.lastId || 0;
 }
 
-export async function updateCategory(id: number, name: string, color: string, icon: string): Promise<void> {
+export async function updateCategory(id: number, name: string, color: string, icon: string, oldName?: string): Promise<void> {
   if (!_db) throw new Error("Database not initialized");
   await _db.run("UPDATE categories SET name = ?, color = ?, icon = ? WHERE id = ?", [name, color, icon, id]);
+  // If name changed, update all transactions with the old category name
+  if (oldName && oldName !== name) {
+    await _db.run("UPDATE transactions SET category = ? WHERE category = ?", [name, oldName]);
+  }
 }
 
 export async function deleteCategory(id: number): Promise<void> {

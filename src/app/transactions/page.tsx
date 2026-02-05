@@ -103,6 +103,27 @@ function TransactionsInner() {
 
   useEffect(() => { load(); }, [load]);
 
+  const [netTotal, setNetTotal] = useState(0);
+
+  const recalculateNetTotal = useCallback(() => {
+    if (!gridRef.current?.api) {
+      // Fallback to raw transactions if grid not ready
+      const totalDeposits = transactions.reduce((sum, t) => sum + (t.deposit || 0), 0);
+      const totalWithdrawals = transactions.reduce((sum, t) => sum + (t.withdrawal || 0), 0);
+      setNetTotal(totalDeposits - totalWithdrawals);
+      return;
+    }
+    let totalDeposits = 0;
+    let totalWithdrawals = 0;
+    gridRef.current.api.forEachNodeAfterFilter((node) => {
+      if (node.data) {
+        totalDeposits += node.data.deposit || 0;
+        totalWithdrawals += node.data.withdrawal || 0;
+      }
+    });
+    setNetTotal(totalDeposits - totalWithdrawals);
+  }, [transactions]);
+
   const addTransaction = async () => {
     if (!form.date || !form.narration.trim()) return;
     if (isCapacitor()) {
@@ -414,6 +435,10 @@ function TransactionsInner() {
           <span className="text-purple-600 dark:text-purple-400 font-medium whitespace-nowrap">Open: {formatCurrency(balanceData.openingBalance)}</span>
           <span className="text-gray-300 dark:text-gray-600">→</span>
           <span className="text-amber-600 dark:text-amber-400 font-medium whitespace-nowrap">Close: {formatCurrency(balanceData.closingBalance)}</span>
+          <span className="text-gray-300 dark:text-gray-600">|</span>
+          <span className={`font-medium whitespace-nowrap ${netTotal >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+            Net: {netTotal >= 0 ? "" : "-"}{formatCurrency(Math.abs(netTotal))}
+          </span>
         </div>
       )}
       {showForm && (
@@ -499,10 +524,12 @@ function TransactionsInner() {
           columnDefs={columnDefs}
           defaultColDef={defaultColDef}
           onCellValueChanged={onCategoryChanged}
+          onFilterChanged={recalculateNetTotal}
+          onRowDataUpdated={recalculateNetTotal}
           pagination={true}
           paginationPageSize={100}
           paginationPageSizeSelector={[50, 100, 200, 500]}
-          getRowId={(params) => String(params.data.id)}
+          getRowId={(params: { data: Transaction }) => String(params.data.id)}
           enableCellTextSelection={true}
           ensureDomOrder={true}
         />

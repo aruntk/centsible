@@ -53,3 +53,48 @@ export async function POST(req: Request) {
   logger.info("categories", `Created category id=${result.lastInsertRowid}: ${name}`);
   return NextResponse.json({ id: result.lastInsertRowid });
 }
+
+export async function PATCH(req: Request) {
+  // Not available during static export
+  if (isMobileBuild) {
+    return NextResponse.json({ error: "Not available in mobile build" }, { status: 501 });
+  }
+
+  const { id, name, color, icon } = await req.json();
+  logger.info("categories", `Updating category id=${id}: name=${name}, color=${color}`);
+
+  if (!id) {
+    return NextResponse.json({ error: "Category id is required" }, { status: 400 });
+  }
+
+  const { getDb } = await import("@/lib/db");
+  const db = getDb();
+
+  // Get current category to check if name changed
+  const current = db.prepare("SELECT name FROM categories WHERE id = ?").get(id) as { name: string } | undefined;
+  if (!current) {
+    return NextResponse.json({ error: "Category not found" }, { status: 404 });
+  }
+
+  // Check if new name already exists (if renaming)
+  if (name && name.trim() !== current.name) {
+    const existing = db.prepare("SELECT id FROM categories WHERE name = ? AND id != ?").get(name.trim(), id);
+    if (existing) {
+      logger.warn("categories", `Category name already exists: ${name}`);
+      return NextResponse.json({ error: "Category name already exists" }, { status: 409 });
+    }
+  }
+
+  // Update category
+  const newName = name?.trim() || current.name;
+  db.prepare("UPDATE categories SET name = ?, color = COALESCE(?, color), icon = COALESCE(?, icon) WHERE id = ?")
+    .run(newName, color, icon, id);
+
+  // Update transactions if name changed
+  if (newName !== current.name) {
+    const result = db.prepare("UPDATE transactions SET category = ? WHERE category = ?").run(newName, current.name);
+    logger.info("categories", `Updated ${result.changes} transactions from "${current.name}" to "${newName}"`);
+  }
+
+  return NextResponse.json({ success: true });
+}

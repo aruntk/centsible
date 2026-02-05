@@ -56,6 +56,9 @@ export default function CategoriesPage() {
   const [newCatName, setNewCatName] = useState("");
   const [newCatColor, setNewCatColor] = useState("#6b7280");
   const [newCatError, setNewCatError] = useState("");
+  const [editingCatId, setEditingCatId] = useState<number | null>(null);
+  const [editCatName, setEditCatName] = useState("");
+  const [editCatColor, setEditCatColor] = useState("");
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState("");
   const load = useCallback(async () => {
@@ -268,6 +271,44 @@ export default function CategoriesPage() {
 
     setNewCatName("");
     setNewCatColor("#6b7280");
+    load();
+  };
+
+  const startEditCategory = (c: Category) => {
+    setEditingCatId(c.id);
+    setEditCatName(c.name);
+    setEditCatColor(c.color);
+  };
+
+  const cancelEditCategory = () => {
+    setEditingCatId(null);
+    setEditCatName("");
+    setEditCatColor("");
+  };
+
+  const saveEditCategory = async () => {
+    if (editingCatId == null || !editCatName.trim()) return;
+    const oldCat = categories.find(c => c.id === editingCatId);
+    if (!oldCat) return;
+
+    if (isCapacitor()) {
+      const { initClientDb, updateCategory } = await import("@/lib/db-client");
+      await initClientDb();
+      await updateCategory(editingCatId, editCatName.trim(), editCatColor, oldCat.icon, oldCat.name);
+    } else {
+      const res = await fetch("/api/categories", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editingCatId, name: editCatName.trim(), color: editCatColor }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setNewCatError(data.error || "Failed to update category");
+        return;
+      }
+    }
+
+    cancelEditCategory();
     load();
   };
 
@@ -619,13 +660,43 @@ export default function CategoriesPage() {
           </button>
           {newCatError && <span className="text-sm text-red-500 dark:text-red-400">{newCatError}</span>}
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-5">
-          {categories.map((c) => (
-            <div key={c.id} className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c.color }} />
-              <span className="text-sm text-gray-700 dark:text-gray-300">{c.name}</span>
-            </div>
-          ))}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 p-5">
+          {categories.map((c) =>
+            editingCatId === c.id ? (
+              <div key={c.id} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2">
+                <input
+                  type="color"
+                  value={editCatColor}
+                  onChange={(e) => setEditCatColor(e.target.value)}
+                  className="w-8 h-8 rounded cursor-pointer border-0"
+                />
+                <input
+                  type="text"
+                  value={editCatName}
+                  onChange={(e) => setEditCatName(e.target.value)}
+                  className={`flex-1 ${inputSmCls}`}
+                  onKeyDown={(e) => e.key === "Enter" && saveEditCategory()}
+                />
+                <button onClick={saveEditCategory} className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 p-1">
+                  <Check className="w-4 h-4" />
+                </button>
+                <button onClick={cancelEditCategory} className="text-gray-400 hover:text-gray-600 p-1">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div key={c.id} className="flex items-center gap-2 group hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg p-2 -m-2">
+                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
+                <span className="text-sm text-gray-700 dark:text-gray-300 flex-1">{c.name}</span>
+                <button
+                  onClick={() => startEditCategory(c)}
+                  className="text-gray-400 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )
+          )}
         </div>
       </div>
 
