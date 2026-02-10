@@ -206,7 +206,7 @@ export interface GetTransactionsParams {
 }
 
 export interface GetTransactionsResult {
-  transactions: Transaction[];
+  transactions: (Transaction & { category_group: string })[];
   total: number;
   page: number;
   limit: number;
@@ -243,6 +243,7 @@ export async function getTransactions(params: GetTransactionsParams = {}): Promi
   }
 
   const where = conditions.length ? "WHERE " + conditions.join(" AND ") : "";
+  const tWhere = where.replace(/\b(date|category|narration|merchant)\b/g, "t.$1");
 
   const countResult = await _db.query(`SELECT COUNT(*) as c FROM transactions ${where}`, queryParams);
   let total = 0;
@@ -252,8 +253,11 @@ export async function getTransactions(params: GetTransactionsParams = {}): Promi
   }
 
   const dataResult = await _db.query(
-    `SELECT id, date, narration, ref_no, value_date, withdrawal, deposit, closing_balance, category, merchant
-     FROM transactions ${where} ORDER BY date DESC, id DESC LIMIT ? OFFSET ?`,
+    `SELECT t.id, t.date, t.narration, t.ref_no, t.value_date, t.withdrawal, t.deposit,
+            t.closing_balance, t.category, t.merchant, COALESCE(c.category_group, 'other') as category_group
+     FROM transactions t
+     LEFT JOIN categories c ON t.category = c.name
+     ${tWhere} ORDER BY t.date DESC, t.id DESC LIMIT ? OFFSET ?`,
     [...queryParams, limit, offset]
   );
 
@@ -1208,7 +1212,7 @@ export async function getKeywords(): Promise<Keyword[]> {
 // Helper Functions
 // =============================================================================
 
-function rowToTransaction(row: unknown[] | Record<string, unknown>): Transaction {
+function rowToTransaction(row: unknown[] | Record<string, unknown>): Transaction & { category_group: string } {
   if (Array.isArray(row)) {
     return {
       id: row[0] as number,
@@ -1221,6 +1225,7 @@ function rowToTransaction(row: unknown[] | Record<string, unknown>): Transaction
       closing_balance: row[7] as number,
       category: row[8] as string,
       merchant: row[9] as string,
+      category_group: (row[10] as string) || "other",
     };
   }
   return {
@@ -1234,6 +1239,7 @@ function rowToTransaction(row: unknown[] | Record<string, unknown>): Transaction
     closing_balance: row.closing_balance as number,
     category: row.category as string,
     merchant: row.merchant as string,
+    category_group: (row.category_group as string) || "other",
   };
 }
 

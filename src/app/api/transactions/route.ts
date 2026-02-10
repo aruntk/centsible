@@ -54,11 +54,15 @@ export async function GET(req: NextRequest) {
   }
 
   const where = conditions.length ? "WHERE " + conditions.join(" AND ") : "";
+  const tWhere = where.replace(/\b(date|category|narration|merchant)\b/g, "t.$1");
 
   const total = (db.prepare(`SELECT COUNT(*) as c FROM transactions ${where}`).get(...params) as { c: number }).c;
   const transactions = db.prepare(
-    `SELECT * FROM transactions ${where} ORDER BY date DESC, id DESC LIMIT ? OFFSET ?`
-  ).all(...params, limit, offset) as Transaction[];
+    `SELECT t.*, COALESCE(c.category_group, 'other') as category_group
+     FROM transactions t
+     LEFT JOIN categories c ON t.category = c.name
+     ${tWhere} ORDER BY t.date DESC, t.id DESC LIMIT ? OFFSET ?`
+  ).all(...params, limit, offset) as (Transaction & { category_group: string })[];
 
   logger.info("transactions", `Fetched ${transactions.length} of ${total} transactions`);
   return NextResponse.json({ transactions, total, page, limit });

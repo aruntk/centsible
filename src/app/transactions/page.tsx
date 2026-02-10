@@ -32,6 +32,7 @@ type Transaction = {
   closing_balance: number;
   category: string;
   merchant: string;
+  category_group: string;
 };
 
 const CATEGORIES = [
@@ -380,7 +381,20 @@ function TransactionsInner() {
       editable: true,
       cellEditor: "agSelectCellEditor",
       cellEditorParams: { values: CATEGORIES },
-      filter: "agTextColumnFilter",
+      filter: "agSetColumnFilter",
+      filterParams: {
+        values: CATEGORIES,
+      },
+    },
+    {
+      field: "category_group",
+      headerName: "Group",
+      width: 120,
+      filter: "agSetColumnFilter",
+      filterParams: {
+        values: ["income", "living_expenditure", "loan", "investment", "other"],
+      },
+      hide: isMobileView,
     },
   ], [isDark, isMobileView]);
 
