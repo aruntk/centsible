@@ -381,19 +381,13 @@ function TransactionsInner() {
       editable: true,
       cellEditor: "agSelectCellEditor",
       cellEditorParams: { values: CATEGORIES },
-      filter: "agSetColumnFilter",
-      filterParams: {
-        values: CATEGORIES,
-      },
+      filter: "agTextColumnFilter",
     },
     {
       field: "category_group",
       headerName: "Group",
       width: 120,
-      filter: "agSetColumnFilter",
-      filterParams: {
-        values: ["income", "living_expenditure", "loan", "investment", "other"],
-      },
+      filter: "agTextColumnFilter",
       hide: isMobileView,
     },
   ], [isDark, isMobileView]);
